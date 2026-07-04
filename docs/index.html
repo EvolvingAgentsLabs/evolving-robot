@@ -1,4 +1,8 @@
-<title>evolving-robot — an agent that evolves its own skills</title>
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>evolving-robot — an agent that rewrites its own skills</title>
 <style>
   :root {
     --bg: #0b1120; --panel: #111a2e; --panel-2: #16213e; --line: #23304d;
@@ -14,16 +18,6 @@
       --ink: #14213b; --dim: #566582; --faint: #8493ad;
       --accent: #0d8a8a; --good: #1f9d57; --bad: #d1364f; --warn: #b07d09; --violet: #6c63d8;
     }
-  }
-  :root[data-theme="dark"] {
-    --bg: #0b1120; --panel: #111a2e; --panel-2: #16213e; --line: #23304d;
-    --ink: #e6ecf5; --dim: #8a97b2; --faint: #5a6788;
-    --accent: #53cfcf; --good: #7bed9f; --bad: #e94560; --warn: #f5c542; --violet: #a29bfe;
-  }
-  :root[data-theme="light"] {
-    --bg: #eef2f8; --panel: #ffffff; --panel-2: #f3f6fc; --line: #d6deea;
-    --ink: #14213b; --dim: #566582; --faint: #8493ad;
-    --accent: #0d8a8a; --good: #1f9d57; --bad: #d1364f; --warn: #b07d09; --violet: #6c63d8;
   }
 
   * { box-sizing: border-box; }
@@ -52,18 +46,23 @@
   @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--good) 55%, transparent); } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
 
   /* ── hero ── */
-  .hero { padding: 74px 0 48px; }
+  .hero { padding: 74px 0 20px; }
   .hero h1 { font-size: clamp(34px, 6vw, 62px); line-height: 1.02; letter-spacing: -0.02em; font-weight: 680; }
   .hero h1 .accent { color: var(--accent); }
-  .lede { font-size: clamp(17px, 2.3vw, 21px); color: var(--dim); max-width: 60ch; margin-top: 22px; }
+  .lede { font-size: clamp(17px, 2.3vw, 21px); color: var(--dim); max-width: 62ch; margin-top: 22px; }
+  .lede b { color: var(--ink); }
+  .promise { margin: 26px 0 0; border-left: 3px solid var(--accent); padding: 12px 20px; background: var(--panel); border-radius: 0 12px 12px 0; font-size: clamp(16px, 2vw, 19px); max-width: 66ch; }
+  .promise b { color: var(--accent); }
   .constraints { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
   .chip { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; color: var(--dim); background: var(--panel); }
   .chip b { color: var(--ink); font-weight: 600; }
 
   section { padding: 40px 0; }
-  .sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 26px; }
+  .sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 10px; }
   .sec-head h2 { font-size: clamp(20px, 3vw, 26px); letter-spacing: -0.01em; }
   .sec-head .num { font-family: var(--mono); color: var(--faint); font-size: 13px; }
+  .sec-lede { color: var(--dim); font-size: 15.5px; max-width: 72ch; margin: 0 0 26px; }
+  .sec-lede b { color: var(--ink); }
 
   /* ── the loop ── */
   .loop { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
@@ -74,20 +73,30 @@
   .node.gate { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
   .node.gate .k { color: var(--warn); }
   .node.decide { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
-  .loopback { display: flex; align-items: center; gap: 12px; margin-top: 14px; font-family: var(--mono); font-size: 12.5px; color: var(--dim); background: var(--panel-2); border: 1px dashed var(--line); border-radius: 10px; padding: 12px 16px; }
+  .loopback { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 14px; font-family: var(--mono); font-size: 12.5px; color: var(--dim); background: var(--panel-2); border: 1px dashed var(--line); border-radius: 10px; padding: 12px 16px; }
   .loopback .pill { border-radius: 6px; padding: 2px 9px; font-weight: 600; }
   .pill.keep { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
   .pill.roll { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
 
-  /* ── stack ── */
-  .stack { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 8px; }
-  .card .role { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); }
-  .card .name { font-size: 17px; font-weight: 680; }
-  .card .name span { color: var(--accent); }
-  .card p { margin: 0; color: var(--dim); font-size: 14px; }
-  .card.brain { grid-column: 1 / -1; border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, var(--panel)), var(--panel)); }
+  /* ── guardrails ── */
+  .rails { display: grid; gap: 16px; }
+  .rail { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: grid; grid-template-columns: 1fr 1fr; }
+  .rail .txt { padding: 24px; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+  .rail .role { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); }
+  .rail .name { font-size: 19px; font-weight: 680; }
+  .rail .name a { color: var(--accent); text-decoration: none; }
+  .rail p { margin: 0; color: var(--dim); font-size: 14.5px; }
+  .rail .thanks { font-size: 13px; color: var(--faint); margin-top: 6px; }
+  .rail .thanks a { color: var(--dim); }
+  .rail .shot { background: #06111e; display: flex; align-items: center; justify-content: center; border-left: 1px solid var(--line); min-height: 220px; }
+  .rail .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .rail.flip .shot { order: -1; border-left: none; border-right: 1px solid var(--line); }
+  .rail.noimg { grid-template-columns: 1fr; border-color: color-mix(in srgb, var(--violet) 32%, var(--line)); }
+  .card.brain { border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, var(--panel)), var(--panel)); border-radius: 14px; padding: 22px 24px; }
+  .card.brain .role { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); }
+  .card.brain .name { font-size: 19px; font-weight: 680; margin-top: 6px; }
   .card.brain .name span { color: var(--accent); }
+  .card.brain p { margin: 8px 0 0; color: var(--dim); font-size: 14.5px; }
 
   /* ── flight log ── */
   .log { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--panel); }
@@ -107,24 +116,30 @@
   .cx { color: var(--faint); } .cg { color: var(--good); } .cr { color: var(--bad); }
   .ca { color: var(--accent); } .cv { color: var(--violet); } .cw { color: var(--warn); }
 
-  .dog { background: var(--panel); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); border-radius: 14px; padding: 22px; }
-  .dog h3 { font-size: 16px; margin-bottom: 4px; }
-  .dog .lead { color: var(--dim); font-size: 14px; margin: 0 0 16px; }
-  .dog ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
-  .dog li { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; font-size: 14px; }
-  .dog li .tag { font-family: var(--mono); font-size: 11px; color: var(--accent); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; white-space: nowrap; margin-top: 2px; }
-  .dog li b { font-family: var(--mono); font-weight: 600; }
-  .dog code { font-family: var(--mono); font-size: 12.5px; color: var(--ink); background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
-  .tests { margin-top: 16px; font-family: var(--mono); font-size: 13px; color: var(--good); display: inline-flex; align-items: center; gap: 8px; }
+  /* ── run it ── */
+  .run { background: var(--panel); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); border-radius: 14px; padding: 26px; display: grid; gap: 14px; }
+  .run h3 { font-size: 18px; }
+  .run p { margin: 0; color: var(--dim); font-size: 14.5px; }
+  .run pre { margin: 0; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; font-family: var(--mono); font-size: 13px; line-height: 1.9; color: var(--ink); overflow-x: auto; }
+  .run pre .cx { color: var(--faint); }
+  .cta { justify-self: start; font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--bg); background: var(--accent); text-decoration: none; border-radius: 8px; padding: 10px 18px; }
 
   footer { border-top: 1px solid var(--line); margin-top: 40px; padding: 26px 0 46px; color: var(--faint); font-family: var(--mono); font-size: 12px; }
-  footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 
   .reveal { opacity: 0; transform: translateY(14px); animation: rise .7s cubic-bezier(.2,.7,.2,1) forwards; }
   @keyframes rise { to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { .reveal { animation: none; opacity: 1; transform: none; } .dot { animation: none; } }
-  @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } .row { grid-template-columns: 40px 1fr; } .row .ok { grid-column: 2; justify-self: start; } }
+  @media (max-width: 760px) {
+    .cols { grid-template-columns: 1fr; }
+    .row { grid-template-columns: 40px 1fr; } .row .ok { grid-column: 2; justify-self: start; }
+    .rail, .rail.flip { grid-template-columns: 1fr; }
+    .rail .shot, .rail.flip .shot { order: -1; border: none; border-bottom: 1px solid var(--line); min-height: 160px; }
+  }
 </style>
+</head>
+<body>
+
+
 
 <header>
   <div class="bar">
@@ -137,8 +152,10 @@
 
   <section class="hero reveal">
     <div class="eyebrow">EvolvingAgentsLabs · working example</div>
-    <h1>A robot that <span class="accent">rewrites its own skills</span> — and versions every mutation.</h1>
-    <p class="lede">A 2D patrol agent runs on Gemma 4 alone. It patrols a simulated facility, dreams about its failures, rewrites a skill, proves the edit is safe, and keeps or rolls it back by score. Four open tools, one closed loop, zero hardware.</p>
+    <h1>Most agents are <span class="accent">frozen at birth</span>. This one isn't.</h1>
+    <p class="lede">Agents ship with a fixed set of skills. When they fail, a human reads the logs, edits a prompt, and redeploys — the agent never learns. <b>evolving-robot</b> is a small, honest proof of a different idea:</p>
+    <div class="promise">An agent that gets better at its job <b>on its own</b> — safely, reversibly, with a full audit trail — running on a commodity model with <b>no GPU</b>.</div>
+    <p class="lede" style="font-size:16px;margin-top:24px">A 2D patrol robot runs a mission, notices where it did poorly, <b>rewrites one of its own skills</b>, and only keeps the change if it provably didn't break anything <em>and</em> improved its score. Otherwise it's rolled back — with the reason on record.</p>
     <div class="constraints">
       <span class="chip"><b>Gemma 4</b> via AI Studio</span>
       <span class="chip">no GPU · no local weights</span>
@@ -149,6 +166,7 @@
 
   <section class="reveal" style="animation-delay:.05s">
     <div class="sec-head"><span class="num">01</span><h2>The closed loop</h2></div>
+    <p class="sec-lede">One cycle: run, score, commit, dream, gate, re-score. Every mutation is versioned like source code.</p>
     <div class="loop">
       <div class="node"><div class="k">run</div><div class="t">Patrol mission</div><div class="d">odyssey drives the sim; Gemma plans + pilots.</div></div>
       <div class="node"><div class="k">score</div><div class="t">success_rate</div><div class="d">checkpoints reached / total.</div></div>
@@ -167,28 +185,40 @@
   </section>
 
   <section class="reveal" style="animation-delay:.1s">
-    <div class="sec-head"><span class="num">02</span><h2>Four tools, four jobs</h2></div>
-    <div class="stack">
-      <div class="card brain">
-        <span class="role">the brain — plans · pilots · dreams</span>
-        <span class="name">Gemma 4 <span>· Google AI Studio (REST)</span></span>
-        <p>One model does everything over a plain HTTPS call — no GPU, no downloads. Native function-calling drives the robot's primitives; the same model rewrites the skills. Confirmed working on <span class="mono">gemma-4-26b-a4b-it</span>.</p>
+    <div class="sec-head"><span class="num">02</span><h2>The three guardrails</h2></div>
+    <p class="sec-lede">The moment an agent can edit its own skills, you inherit a scary question: <b>what stops it from writing something broken?</b> Letting it self-edit is only sane because three open projects each solve one hard part. Full credit and thanks to their authors — this project exists to show how well they compose.</p>
+    <div class="rails">
+      <div class="rail">
+        <div class="txt">
+          <span class="role">the scoreboard</span>
+          <span class="name"><a href="https://odyssey.dev/">odyssey</a></span>
+          <p>An agent can only improve if it is <em>measured</em>. odyssey defines, runs, and benchmarks robot missions — and its duck-typed <span class="mono">TextGenerator</span> / <span class="mono">Runner</span> / <span class="mono">PlannedEvalRuntime</span> seams let a REST-based Gemma brain and a 2D-sim runner slot in without forking anything. Every patrol ends in an honest <span class="mono">success_rate</span> — the exact signal the evolution loop turns on.</p>
+          <span class="thanks">Thank you <a href="https://github.com/SoyGema">@SoyGema</a> &amp; Lovell AI · <a href="https://odyssey.dev/">odyssey.dev</a> · <a href="https://github.com/lovellai-dev/odyssey">GitHub</a></span>
+        </div>
+        <a class="shot" href="https://odyssey.dev/"><img src="img/odyssey.png" alt="odyssey — open-source framework for defining, running, and benchmarking robot training missions"></a>
       </div>
-      <div class="card">
-        <span class="role">the body + arena</span>
-        <span class="name"><span>odyssey</span> + sim2d</span>
-        <p>Mission orchestration and scoring. A custom <span class="mono">Sim2DRunner</span> composes a Gemma planner + pilot through odyssey's multi-agent runtime, driving a 2D simulator over WebSocket.</p>
+      <div class="rail flip">
+        <div class="txt">
+          <span class="role">the safety gate</span>
+          <span class="name"><a href="https://skill-map.ai/">skill-map</a></span>
+          <p>A hallucinated reference, a name collision, a malformed file — any of these can quietly poison an agent. skill-map reads every skill, agent, and command, builds a <em>graph</em> of how they reference each other, and turns broken edits into hard errors. Before any self-edit lands, <span class="mono">sm check</span> must pass; failures go back to the model as feedback, or the edit is discarded.</p>
+          <span class="thanks">Thank you <a href="https://github.com/crystian">@crystian</a> · <a href="https://skill-map.ai/">skill-map.ai</a> · <a href="https://github.com/crystian/skill-map">GitHub</a></span>
+        </div>
+        <a class="shot" href="https://skill-map.ai/"><img src="img/skill-map.png" alt="skill-map — the graph of skills, agents, and commands, with validated cross-references"></a>
       </div>
-      <div class="card">
-        <span class="role">the safety gate</span>
-        <span class="name"><span>skill-map</span></span>
-        <p>A semantic linter over the skill graph. Before any self-edit lands, <span class="mono">sm check</span> rejects broken cross-references, name collisions, and schema violations.</p>
+      <div class="rail noimg">
+        <div class="txt">
+          <span class="role">the genetic memory</span>
+          <span class="name"><a href="https://github.com/EvolvingAgentsLabs/agentvcs">agentvcs</a></span>
+          <p>Self-improvement without memory is just drift. agentvcs is version control built for agents: a commit pins <b>code + goal + the trace of what the agent actually did</b>, as one object. It gives the loop its two survival instincts — <span class="mono">rollback(reason=…)</span> when a change makes things worse, and <span class="mono">crystallize</span> to freeze a verified skill set into a trusted, replayable recipe.</p>
+          <span class="thanks"><a href="https://github.com/EvolvingAgentsLabs/agentvcs">github.com/EvolvingAgentsLabs/agentvcs</a></span>
+        </div>
       </div>
-      <div class="card">
-        <span class="role">the genetic memory</span>
-        <span class="name"><span>agentvcs</span></span>
-        <p>Multidimensional version control. Commits pin code + goal + the mission trace together; a regression triggers <span class="mono">rollback</span>, a verified win gets <span class="mono">crystallize</span>d.</p>
-      </div>
+    </div>
+    <div class="card brain" style="margin-top:16px">
+      <span class="role">the brain — plans · pilots · dreams</span>
+      <div class="name">Gemma 4 <span>· Google AI Studio (REST)</span></div>
+      <p>One model does everything over a plain HTTPS call — no GPU, no downloads. Native function-calling drives the robot's primitives; the same model rewrites the skills. Confirmed working on <span class="mono">gemma-4-26b-a4b-it</span>.</p>
     </div>
   </section>
 
@@ -231,32 +261,35 @@
   </section>
 
   <section class="reveal" style="animation-delay:.16s">
-    <div class="sec-head"><span class="num">05</span><h2>Built in the same workspace: agentvcs, improved</h2></div>
-    <div class="dog">
-      <h3>Two contributions surfaced by dogfooding</h3>
-      <p class="lead">Using agentvcs to version a live evolving agent exposed two gaps. Both were implemented and tested in the sibling repo.</p>
-      <ul>
-        <li><span class="tag">rollback</span><span><b>Repository.rollback(reason=…)</b> — records <em>why</em> a rollback happened (an eval regression) in the durable ledger, not just the restored goal. Backward-compatible.</span></li>
-        <li><span class="tag">provider</span><span><b>The <code>odyssey</code> trace provider</b> — reads odyssey's native <code>missions.db</code> with only the standard library and normalizes a mission (objective + per-task <code>result_summary</code> + grade) into agentvcs's message list.</span></li>
-      </ul>
-      <div class="tests"><span class="dot" style="position:relative"></span> agentvcs test suite — 190 passed</div>
+    <div class="sec-head"><span class="num">05</span><h2>Run it yourself</h2></div>
+    <div class="run">
+      <p>The entire proof runs on a laptop with an API key. Two dependencies, one command for the full live loop:</p>
+<pre>python3.12 -m venv .venv &amp;&amp; ./.venv/bin/pip install httpx websockets
+cp .env.example .env                        <span class="cx"># add GEMINI_API_KEY</span>
+./.venv/bin/python scripts/evolve_live.py   <span class="cx"># the full loop, live</span></pre>
+      <p>Open <span class="mono">http://localhost:9092</span> to watch the robot patrol while it evolves.</p>
+      <a class="cta" href="https://github.com/EvolvingAgentsLabs/evolving-robot">View on GitHub ↗</a>
     </div>
   </section>
 
 </main>
 
 <footer>
-  <div class="wrap" style="flex-direction:column;gap:14px;align-items:stretch">
+  <div class="wrap" style="display:flex;flex-direction:column;gap:14px">
     <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px">
       <span>a self-evolving agent, versioned end to end</span>
       <span><a href="https://github.com/EvolvingAgentsLabs/evolving-robot" style="color:var(--accent)">github.com/EvolvingAgentsLabs/evolving-robot</a> · Apache 2.0</span>
     </div>
     <div style="color:var(--faint);line-height:1.9;border-top:1px solid var(--line);padding-top:14px">
-      built with
+      built with — and with thanks to the authors of —
       <a href="https://skill-map.ai/" style="color:var(--dim)">skill-map</a> by <a href="https://github.com/crystian" style="color:var(--dim)">@crystian</a> ·
-      <a href="https://github.com/lovellai-dev/odyssey" style="color:var(--dim)">odyssey</a> by <a href="https://github.com/SoyGema" style="color:var(--dim)">@SoyGema</a> ·
+      <a href="https://odyssey.dev/" style="color:var(--dim)">odyssey</a> by <a href="https://github.com/SoyGema" style="color:var(--dim)">@SoyGema</a> (Lovell AI) ·
       <a href="https://github.com/EvolvingAgentsLabs/agentvcs" style="color:var(--dim)">agentvcs</a> ·
       <a href="https://aistudio.google.com/" style="color:var(--dim)">Gemma 4</a>
     </div>
   </div>
 </footer>
+
+
+
+</body></html>
