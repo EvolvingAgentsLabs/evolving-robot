@@ -10,6 +10,8 @@ I wanted to test a different idea:
 
 So I built [**evolving-robot**](https://github.com/EvolvingAgentsLabs/evolving-robot): a small 2D patrol robot that runs a mission, notices where it did poorly, **rewrites one of its own skills**, and only keeps the change if it provably didn't break anything *and* improved its score. Otherwise the change is rolled back — with the reason on record.
 
+![The robot patrolling the simulated facility — planned and piloted by Gemma, rendered live in the sim2d viewer.](img/sim-patrol.gif)
+
 It works. And the interesting part isn't the robot. It's the three guardrails that made "let it edit itself" a sane thing to do.
 
 ## The scary question
@@ -22,7 +24,11 @@ My answer was to make the loop pass through three independent checkpoints, each 
 
 **1. A scoreboard.** [odyssey](https://github.com/lovellai-dev/odyssey) (by [@SoyGema](https://github.com/SoyGema)) runs and scores every patrol mission. An agent can only improve if it's *measured* — odyssey gives me an honest `success_rate` at the end of every run, and its protocol seams are so clean that a REST-based Gemma brain and a toy 2D simulator slotted in without forking anything.
 
+[![odyssey — open-source framework for defining, running, and benchmarking robot training missions](img/odyssey.png)](https://odyssey.dev/)
+
 **2. A linter for skills.** [skill-map](https://github.com/crystian/skill-map) (by [@crystian](https://github.com/crystian)) reads every skill file, builds a graph of how they reference each other, and turns broken references, collisions, and schema violations into hard errors. Every self-edit must pass this gate before it can land. If the rewrite is broken, the exact error goes back to the model to try again — and if it still can't produce something clean, the edit is discarded.
+
+[![skill-map — a graph of skills, agents, and commands with validated cross-references](img/skill-map.jpg)](https://skill-map.ai/)
 
 **3. A genetic memory.** [agentvcs](https://github.com/EvolvingAgentsLabs/agentvcs) is version control built for agents: a commit pins code + goal + the trace of what the agent actually did, as one object. It gives the loop its two survival instincts — `rollback(reason=…)` when a change makes things worse, and `crystallize` to freeze a verified skill set into a trusted recipe.
 

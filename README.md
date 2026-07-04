@@ -6,9 +6,10 @@
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![No GPU](https://img.shields.io/badge/GPU-not%20required-success)
 
-<!-- TODO: record a 10–15s GIF of sim2d/viewer.html during scripts/evolve_live.py and drop it here.
-     This is the single highest-impact asset the README can have. -->
-<!-- ![demo](docs/img/demo.gif) -->
+<p align="center">
+  <img src="docs/img/sim-patrol.gif" alt="the robot patrolling the 2D facility in sim2d" width="72%">
+  <br><em>The robot patrolling the simulated facility — planned and piloted by Gemma, rendered live in <code>sim2d/viewer.html</code>.</em>
+</p>
 
 One brain — **Gemma 4** (`gemma-4-26b-a4b-it`) over Google AI Studio's REST API, no GPU — orchestrated by [**odyssey**](https://github.com/lovellai-dev/odyssey), gated by [**skill-map**](https://github.com/crystian/skill-map), and versioned by [**agentvcs**](https://github.com/EvolvingAgentsLabs/agentvcs).
 
@@ -26,7 +27,7 @@ flowchart LR
 
 The robot patrols a simulated facility, dreams about its failures, rewrites a skill, and only keeps the change if it survives a semantic gate and improves its score — otherwise agentvcs rolls it back with a recorded reason.
 
-📖 **New here?** Read the blog post — [**I let a robot rewrite its own code. Here's what stopped it from breaking everything.**](./docs/blog-post.md) See [`PLAN.md`](./PLAN.md) for the architecture, and the [project page](https://evolvingagentslabs.github.io/evolving-robot/) for a visual overview.
+📖 **New here?** Read the blog post — [**I let a robot rewrite its own code. Here's what stopped it from breaking everything.**](./docs/blog-post.md) See [`PLAN.md`](./PLAN.md) for the architecture.
 
 ## Requirements
 
@@ -159,7 +160,7 @@ Set `ROBOT_PROVIDER=aistudio` (default) or `openrouter`. Both are GPU-free. `GEM
 evolving-robot stands on three open projects. This example exists to show how well they compose — full credit and thanks to their authors. The full story is in the [**blog post**](./docs/blog-post.md).
 
 <p>
-  <a href="https://skill-map.ai/"><img src="./docs/img/skill-map.png" alt="skill-map" width="49%"></a>
+  <a href="https://skill-map.ai/"><img src="./docs/img/skill-map.jpg" alt="skill-map" width="49%"></a>
   <a href="https://odyssey.dev/"><img src="./docs/img/odyssey.png" alt="odyssey" width="49%"></a>
 </p>
 
