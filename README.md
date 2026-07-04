@@ -7,7 +7,10 @@ patrols a simulated facility, dreams about its failures, rewrites a skill, and o
 the change if it survives a semantic gate and improves its score, otherwise agentvcs rolls
 it back.
 
-See [`PLAN.md`](./PLAN.md) for the full architecture and phased plan.
+📖 **New here?** Read [**How evolving-robot works — and the shoulders it stands on**](./docs/how-it-works.md)
+for the story: the promise, the three open projects behind it, and how the loop fulfills it.
+See [`PLAN.md`](./PLAN.md) for the full architecture, and the
+[project page](https://evolvingagentslabs.github.io/evolving-robot/) for a visual overview.
 
 ## Status
 
@@ -149,7 +152,13 @@ default, which leaks into the text output and bills extra tokens.
 ## Acknowledgments
 
 evolving-robot stands on three open projects. This example exists to show how well they
-compose — full credit and thanks to their authors:
+compose — full credit and thanks to their authors. The full story is in
+[**How evolving-robot works**](./docs/how-it-works.md).
+
+<p>
+  <a href="https://skill-map.ai/"><img src="./docs/img/skill-map.png" alt="skill-map" width="49%"></a>
+  <a href="https://odyssey.dev/"><img src="./docs/img/odyssey.png" alt="odyssey" width="49%"></a>
+</p>
 
 - **[skill-map](https://github.com/crystian/skill-map)** — [skill-map.ai](https://skill-map.ai/) —
   by **[@crystian](https://github.com/crystian)**. The semantic gate that makes the robot's
