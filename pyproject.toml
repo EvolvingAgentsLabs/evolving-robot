@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "evolving-robot"
+version = "0.0.1"
+description = "A 2D patrol robot that autonomously evolves its own skills, driven by Gemma 4 (AI Studio, no GPU), orchestrated by odyssey, gated by skill-map, and versioned by agentvcs."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+
+# Phase 0 + 1 only need an HTTP client (Gemma REST) and a WebSocket server (sim2d).
+# odyssey / agentvcs are wired in from Phase 2 / Phase 5 via local editable installs:
+#   pip install -e ../odyssey -e ../agentvcs
+dependencies = [
+    "httpx>=0.24",
+    "websockets>=12.0",
+    "numpy>=1.24",   # odyssey's PlannedEvalRuntime imports numpy
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["robot_brain"]

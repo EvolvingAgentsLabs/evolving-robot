@@ -1,0 +1,25 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Secrets / local config
+.env
+
+# Generated at runtime
+traces/
+.odyssey/
+
+# skill-map local artifacts (nested .gitignore also covers these)
+**/.skill-map/skill-map.db
+**/.skill-map/settings.local.json
+**/.skill-map/serve.json
+
+# agentvcs repo state (the live loop creates this under robot_brain/skills at runtime)
+**/.agentvcs/
+**/agent.json
+**/AGENTS.md
+
+# OS
+.DS_Store

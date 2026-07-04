@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>evolving-robot — sim2d</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #12121f; color: #e0e0e0; font-family: 'Courier New', monospace;
+    height: 100vh; display: grid; grid-template-columns: 640px 1fr; grid-template-rows: auto 1fr; }
+  #top { grid-column: 1 / -1; background: #0f3460; padding: 10px 18px; display: flex;
+    justify-content: space-between; align-items: center; border-bottom: 2px solid #26264a; }
+  #top h1 { font-size: 15px; color: #53cfcf; letter-spacing: 0.5px; }
+  #top .info { font-size: 12px; color: #8a8aa0; display: flex; gap: 14px; }
+  #top .info b { color: #7bed9f; font-weight: bold; }
+  #left { display: flex; flex-direction: column; border-right: 2px solid #26264a; }
+  #canvas-wrap { padding: 12px; background: #16213e; }
+  canvas { display: block; background: #0d1526; border-radius: 4px; }
+  #pose { display: flex; gap: 18px; padding: 8px 14px; background: #0f3460; font-size: 12px; }
+  #pose .k { color: #6b6b85; } #pose .v { color: #e94560; font-weight: bold; }
+  #log { flex: 1; overflow-y: auto; padding: 8px 12px; font-size: 11px; line-height: 1.55; background: #16213e; }
+  .e { margin: 1px 0; } .t { color: #4a4a63; margin-right: 6px; }
+  .k-move .n, .k-rotate .n { color: #7bed9f; }
+  .k-observe .n { color: #f5c542; }
+  .k-speak .n { color: #53cfcf; }
+  .k-arrived .n, .k-run_complete .n { color: #a29bfe; font-weight: bold; }
+  .k-run_started .n { color: #a29bfe; }
+  .k-halt .n { color: #e94560; }
+  .n { font-weight: bold; margin-right: 6px; }
+  #side { padding: 12px 16px; overflow-y: auto; }
+  #side h2 { font-size: 12px; color: #53cfcf; margin: 8px 0 6px; text-transform: uppercase; letter-spacing: 1px; }
+  .lm { font-size: 12px; padding: 3px 0; color: #b0b0c8; display: flex; gap: 8px; }
+  .lm .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 3px; flex: 0 0 auto; }
+  #conn { font-size: 11px; }
+  #conn.on { color: #7bed9f; } #conn.off { color: #e94560; }
+</style>
+</head>
+<body>
+  <div id="top">
+    <h1>evolving-robot · sim2d</h1>
+    <div class="info">
+      <span id="conn" class="off">● connecting</span>
+      <span class="k">events <b id="n-events">0</b></span>
+    </div>
+  </div>
+
+  <div id="left">
+    <div id="canvas-wrap"><canvas id="arena" width="616" height="500"></canvas></div>
+    <div id="pose">
+      <span><span class="k">x</span> <span class="v" id="p-x">--</span></span>
+      <span><span class="k">y</span> <span class="v" id="p-y">--</span></span>
+      <span><span class="k">heading</span> <span class="v" id="p-h">--</span>°</span>
+    </div>
+    <div id="log"></div>
+  </div>
+
+  <div id="side">
+    <h2>Arena</h2>
+    <div id="landmarks"></div>
+    <h2>Legend</h2>
+    <div class="lm"><span class="dot" style="background:#53cfcf"></span> door</div>
+    <div class="lm"><span class="dot" style="background:#f5c542"></span> person</div>
+    <div class="lm"><span class="dot" style="background:#a29bfe"></span> object</div>
+    <div class="lm"><span class="dot" style="background:#e94560"></span> robot</div>
+  </div>
+
+<script>
+const cv = document.getElementById('arena');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+const SCALE = 110;                 // pixels per meter
+const cx = W / 2, cy = H / 2;      // world origin at canvas center
+const COLORS = { door: '#53cfcf', person: '#f5c542', object: '#a29bfe', obstacle: '#e94560' };
+
+let arena = { landmarks: [], observe_radius: 3.5 };
+let pose = { x: 0, y: 0, heading: 90 };   // target pose
+let shown = { x: 0, y: 0, heading: 90 };  // interpolated pose
+let trail = [];
+let events = 0;
+
+// world (x east, y north) -> screen (y down)
+const sx = x => cx + x * SCALE;
+const sy = y => cy - y * SCALE;
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  // grid
+  ctx.strokeStyle = '#1b2540'; ctx.lineWidth = 1;
+  for (let gx = -3; gx <= 3; gx++) { ctx.beginPath(); ctx.moveTo(sx(gx), 0); ctx.lineTo(sx(gx), H); ctx.stroke(); }
+  for (let gy = -2; gy <= 2; gy++) { ctx.beginPath(); ctx.moveTo(0, sy(gy)); ctx.lineTo(W, sy(gy)); ctx.stroke(); }
+  // axes
+  ctx.strokeStyle = '#2a3a5f'; ctx.beginPath(); ctx.moveTo(0, sy(0)); ctx.lineTo(W, sy(0));
+  ctx.moveTo(sx(0), 0); ctx.lineTo(sx(0), H); ctx.stroke();
+
+  // interpolate pose
+  shown.x += (pose.x - shown.x) * 0.18;
+  shown.y += (pose.y - shown.y) * 0.18;
+  let dh = ((pose.heading - shown.heading + 540) % 360) - 180;
+  shown.heading += dh * 0.18;
+
+  // observe radius
+  ctx.beginPath(); ctx.arc(sx(shown.x), sy(shown.y), arena.observe_radius * SCALE, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(83,207,207,0.12)'; ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([]);
+
+  // trail
+  ctx.beginPath();
+  trail.forEach((p, i) => { const fx = sx(p.x), fy = sy(p.y); i ? ctx.lineTo(fx, fy) : ctx.moveTo(fx, fy); });
+  ctx.strokeStyle = 'rgba(233,69,96,0.35)'; ctx.lineWidth = 2; ctx.stroke();
+
+  // landmarks
+  for (const lm of arena.landmarks) {
+    const x = sx(lm.x), y = sy(lm.y), col = COLORS[lm.type] || '#888';
+    ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
+    ctx.fillStyle = '#c7c7dd'; ctx.font = '11px Courier New'; ctx.fillText(lm.label, x + 12, y + 4);
+  }
+
+  // robot (triangle pointing along heading; y flips so negate for screen)
+  const rx = sx(shown.x), ry = sy(shown.y), a = -shown.heading * Math.PI / 180;
+  ctx.save(); ctx.translate(rx, ry); ctx.rotate(a);
+  ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-9, 8); ctx.lineTo(-9, -8); ctx.closePath();
+  ctx.fillStyle = '#e94560'; ctx.fill(); ctx.restore();
+
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+function renderLandmarks() {
+  document.getElementById('landmarks').innerHTML = arena.landmarks.map(lm =>
+    `<div class="lm"><span class="dot" style="background:${COLORS[lm.type]||'#888'}"></span>${lm.label} <span style="color:#5a5a72">(${lm.x}, ${lm.y})</span></div>`
+  ).join('');
+}
+
+function log(kind, text) {
+  const el = document.getElementById('log');
+  const now = new Date().toLocaleTimeString('en-US', { hour12: false });
+  const row = document.createElement('div');
+  row.className = 'e k-' + kind;
+  row.innerHTML = `<span class="t">${now}</span><span class="n">${kind}</span>${text || ''}`;
+  el.appendChild(row); el.scrollTop = el.scrollHeight;
+  document.getElementById('n-events').textContent = (++events);
+}
+
+function setPose(p) {
+  pose = { x: p.x, y: p.y, heading: p.heading };
+  trail.push({ x: p.x, y: p.y }); if (trail.length > 400) trail.shift();
+  document.getElementById('p-x').textContent = p.x.toFixed(2);
+  document.getElementById('p-y').textContent = p.y.toFixed(2);
+  document.getElementById('p-h').textContent = Math.round(p.heading);
+}
+
+const WS_URL = new URLSearchParams(location.search).get('ws') || 'ws://localhost:9091';
+let ws;
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => { const c = document.getElementById('conn'); c.textContent = '● connected'; c.className = 'on'; };
+  ws.onclose = () => {
+    const c = document.getElementById('conn'); c.textContent = '● disconnected'; c.className = 'off';
+    setTimeout(connect, 1500);
+  };
+  ws.onmessage = (ev) => {
+    const m = JSON.parse(ev.data);
+    switch (m.type) {
+      case 'arena': arena = m; renderLandmarks(); if (m.pose) setPose(m.pose); break;
+      case 'pose': setPose(m); break;
+      case 'move': log('move', `${m.distance_cm} cm`); break;
+      case 'rotate': log('rotate', `${m.direction} ${m.degrees}°`); break;
+      case 'observe': log('observe', `${m.landmarks} landmark(s) in range`); break;
+      case 'speak': log('speak', `"${m.text}"`); break;
+      case 'arrived': log('arrived', m.reason || m.goalId || ''); break;
+      case 'halt': log('halt', m.status || ''); break;
+      case 'run_started': log('run_started', m.task || ''); trail = []; break;
+      case 'run_complete': log('run_complete', `${m.outcome||''} (${m.turns||0} turns)`); break;
+    }
+  };
+}
+connect();
+</script>
+</body>
+</html>

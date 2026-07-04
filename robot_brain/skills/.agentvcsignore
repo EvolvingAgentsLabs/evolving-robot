@@ -1,0 +1,4 @@
+# agentvcs versions the skills tree only. Exclude skill-map's own files.
+.skill-map
+.skillmapignore
+.gitignore
