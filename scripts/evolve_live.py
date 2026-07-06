@@ -27,11 +27,11 @@ sys.path.insert(0, str(ROOT))
 from robot_brain.dream import DreamEngine  # noqa: E402
 from robot_brain.evolve import EvolutionController  # noqa: E402
 from robot_brain.gemma import GemmaError, make_brain  # noqa: E402
-from scripts.run_mission import patrol_success_rate  # noqa: E402
+from scripts.run_mission import rounds_score  # noqa: E402
 
 SKILLS = ROOT / "robot_brain" / "skills"
 TRACES = ROOT / "traces"
-PATROL_SKILL = SKILLS / ".claude" / "skills" / "patrol-route" / "SKILL.md"
+TARGET_SKILL = SKILLS / ".claude" / "skills" / "patient-check" / "SKILL.md"
 
 
 def _wait_port(host: str, port: int, timeout: float = 10.0) -> bool:
@@ -47,7 +47,7 @@ def _wait_port(host: str, port: int, timeout: float = 10.0) -> bool:
 
 def main() -> int:
     keep = "--keep" in sys.argv
-    skill_backup = PATROL_SKILL.read_text()
+    skill_backup = TARGET_SKILL.read_text()
     agentvcs_existed = (SKILLS / ".agentvcs").exists()
 
     sim = subprocess.Popen(
@@ -69,9 +69,9 @@ def main() -> int:
         dream = DreamEngine(brain, SKILLS, TRACES)
 
         result = ctrl.evolve_step(
-            dream_fn=lambda: dream.dream("patrol-route"),
-            score_fn=lambda: patrol_success_rate(),
-            target_skill="patrol-route",
+            dream_fn=lambda: dream.dream("patient-check"),
+            score_fn=lambda: rounds_score(),
+            target_skill="patient-check",
         )
 
         print("\n--- evolution step ---")
@@ -95,7 +95,7 @@ def main() -> int:
         except subprocess.TimeoutExpired:
             sim.kill()
         if not keep:
-            PATROL_SKILL.write_text(skill_backup)
+            TARGET_SKILL.write_text(skill_backup)
             if not agentvcs_existed:
                 shutil.rmtree(SKILLS / ".agentvcs", ignore_errors=True)
                 (SKILLS / "agent.json").unlink(missing_ok=True)  # created by Repository.init

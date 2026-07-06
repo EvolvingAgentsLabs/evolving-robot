@@ -6,6 +6,13 @@ standard ``build_eval_summary`` dict (``success_rate`` / ``performance_score`` /
 Instead of a Robosuite env it talks to ``sim2d/server.py`` over the same WebSocket protocol
 ``scripts/drive_sim.py`` uses, so the browser viewer animates the eval live.
 
+Scoring is clinical: an episode succeeds only if the robot reaches every checkpoint
+(the ward rooms) AND correctly reports every ground-truth anomaly (a patient
+``on_floor`` / ``calling`` / ``unresponsive``, injected via the sim's ``set_status``).
+Partial credit lands in ``performance_score`` (mean episode return), so "completed the
+round but missed the fallen patient" scores 0.8, not 1.0 — the honest number the
+evolution loop keeps or rolls back on.
+
 Registers for ``(EVALUATION, "custom")`` so a mission task with
 ``evaluation_type: custom`` selects it automatically (a specific (kind, type) beats the
 ``cpu_mock`` wildcard). No changes to odyssey's source are required.
@@ -30,8 +37,8 @@ from odyssey.runners.evals._common import build_eval_summary
 from odyssey.spec.tasks import TaskKind
 
 from robot_brain.gemma import GemmaError, make_brain
-from robot_brain.pilot import Pilot2D
-from robot_brain.skills import load_skills, get_skill
+from robot_brain.pilot import ANOMALY_STATUSES, Pilot2D
+from robot_brain.skills import load_skills
 from odyssey_ext.gemma_rest import GemmaPlannerGenerator
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -64,8 +71,8 @@ class Sim2DRunner(Runner):
         max_steps = int(cfg.get("max_steps", 30))
         arrive_radius = float(cfg.get("arrive_radius_m", 0.6))
         objective = context.mission.spec.objective.strip()
-        benchmark = getattr(spec, "benchmark_name", None) or "patrol"
-        target_skill = cfg.get("skill", "patrol-route")
+        benchmark = getattr(spec, "benchmark_name", None) or "night-rounds"
+        target_skill = cfg.get("skill", "patient-check")
 
         # Brain: planner + pilot both Gemma when a key is present; otherwise a
         # deterministic scripted pilot with no planner (single phase). Either way
@@ -84,14 +91,26 @@ class Sim2DRunner(Runner):
 
         async with websockets.connect(ws_url) as ws:
             arena = json.loads(await ws.recv())  # first frame = arena snapshot
-            checkpoints = [l["id"] for l in arena.get("landmarks", []) if l["type"] == "door"]
+            checkpoints = list(cfg.get("checkpoints") or []) or [
+                l["id"] for l in arena.get("landmarks", []) if l["type"] == "door"
+            ]
+            # Ground truth for scoring: persons whose injected status is an anomaly.
+            anomalies = {
+                l["id"]: l["status"]
+                for l in arena.get("landmarks", [])
+                if l["type"] == "person" and l.get("status") in ANOMALY_STATUSES
+            }
 
-            # Load the active skill body and inject it into the pilot, so evolving the
-            # skill (Phase 4) actually changes behavior.
-            skill = get_skill(load_skills(_SKILLS_DIR), target_skill)
-            skill_body = skill.body if skill else ""
+            # Inject every skill body into the pilot (the ward protocol is the three
+            # skills together), so evolving any of them actually changes behavior.
+            skills = load_skills(_SKILLS_DIR)
+            skill_body = "\n\n".join(f"## Skill: {s.name}\n{s.body}" for s in skills)
 
-            planner = LLMPlanner(GemmaPlannerGenerator(brain)) if brain else None
+            planner = (
+                LLMPlanner(GemmaPlannerGenerator(brain, skill_context=skill_body))
+                if brain
+                else None
+            )
             pilot = Pilot2D(
                 mode=pilot_mode,
                 brain=brain,
@@ -115,19 +134,44 @@ class Sim2DRunner(Runner):
             for ep in range(1, num_episodes + 1):
                 if context.cancelled():
                     break
-                visited, steps = await self._run_episode(
-                    ws, runtime, objective, checkpoints, max_steps, arrive_radius
-                )
+                try:
+                    visited, reports, steps = await self._run_episode(
+                        ws, runtime, objective, checkpoints, max_steps, arrive_radius, anomalies
+                    )
+                except GemmaError as err:
+                    # The planner call died (free-tier throttling / read timeout).
+                    # Degrade to planner-less mode: the objective is the instruction.
+                    print(f"  (planner failed, degrading to planner-less episode: {str(err)[:80]})")
+                    runtime = PlannedEvalRuntime(
+                        pilot,
+                        None,
+                        phase_config=PhaseConfig(
+                            strategy=PhaseStrategy.FIXED_STEPS, steps_per_phase=4
+                        ),
+                        fallback_instruction=objective,
+                    )
+                    visited, reports, steps = await self._run_episode(
+                        ws, runtime, objective, checkpoints, max_steps, arrive_radius, anomalies
+                    )
                 reached = len(visited)
-                total = len(checkpoints) or 1
-                episode_returns.append(reached / total)
-                if reached == len(checkpoints):
+                # A report is correct when both the person and the observed status match.
+                correct = {t for t, s in reports if anomalies.get(t) == s}
+                missed_anoms = [t for t in anomalies if t not in correct]
+                total = (len(checkpoints) + len(anomalies)) or 1
+                episode_returns.append((reached + len(correct)) / total)
+                if reached == len(checkpoints) and not missed_anoms:
                     successes += 1
                 episodes.append(
                     {
                         "episode": ep,
                         "reached": sorted(visited),
                         "missed": [c for c in checkpoints if c not in visited],
+                        "anomalies": dict(anomalies),
+                        "reported": sorted(correct),
+                        "missed_anomalies": missed_anoms,
+                        "false_reports": sorted(
+                            {t for t, s in reports if anomalies.get(t) != s}
+                        ),
                         "steps": steps,
                     }
                 )
@@ -136,7 +180,10 @@ class Sim2DRunner(Runner):
                     step="episode_complete",
                     step_index=ep,
                     step_total=num_episodes,
-                    step_label=f"ep {ep}: {reached}/{len(checkpoints)} checkpoints",
+                    step_label=(
+                        f"ep {ep}: {reached}/{len(checkpoints)} checkpoints, "
+                        f"{len(correct)}/{len(anomalies)} anomalies reported"
+                    ),
                 )
 
             outcome = "success" if successes == num_episodes else "partial"
@@ -155,6 +202,8 @@ class Sim2DRunner(Runner):
             checkpoint_path=(brain.model if brain else "scripted-pilot"),
             metrics={
                 "checkpoints": checkpoints,
+                "anomalies": anomalies,
+                "anomalies_reported": episodes[-1]["reported"] if episodes else [],
                 "pilot": pilot_mode,
                 "skill": target_skill,
                 "trace": str(trace_path),
@@ -177,7 +226,7 @@ class Sim2DRunner(Runner):
             f"success_rate: {success_rate:.3f}",
             f"checkpoints: {checkpoints}",
             "---",
-            f"\n# Patrol trace: {benchmark}\n",
+            f"\n# Night-rounds trace: {benchmark}\n",
             f"Objective: {objective}\n",
         ]
         for ep in episodes:
@@ -186,6 +235,18 @@ class Sim2DRunner(Runner):
                 f"## Episode {ep['episode']} - reached {len(ep['reached'])}/{len(checkpoints)} "
                 f"(missed: {miss})"
             )
+            anomalies = ep.get("anomalies") or {}
+            if anomalies:
+                reported = ", ".join(ep.get("reported") or []) or "none"
+                lines.append(f"Anomalies present: {anomalies}. Correctly reported: {reported}.")
+            for t in ep.get("missed_anomalies") or []:
+                lines.append(
+                    f"INCIDENT: {t} was '{anomalies.get(t)}' and was NEVER reported. "
+                    f"Its status read 'unknown' from the route - a person's status is only "
+                    f"visible within ~0.8 m, so the robot must approach the patient to check them."
+                )
+            for t in ep.get("false_reports") or []:
+                lines.append(f"False report filed on {t} (did not match the ground truth).")
             for s in ep["steps"]:
                 pos = s["position"]
                 pos_str = (
@@ -203,7 +264,7 @@ class Sim2DRunner(Runner):
 
     # -- episode -------------------------------------------------------------
 
-    async def _run_episode(self, ws, runtime, objective, checkpoints, max_steps, radius):
+    async def _run_episode(self, ws, runtime, objective, checkpoints, max_steps, radius, anomalies):
         await self._cmd(ws, {"cmd": "reset"})
         if hasattr(self, "_pilot"):
             self._pilot.reset()
@@ -213,16 +274,23 @@ class Sim2DRunner(Runner):
         await asyncio.to_thread(runtime.begin_episode, objective, None)
 
         visited: set[str] = set()
+        reports: list[tuple[str, str]] = []  # (target, status) the robot filed
         steps: list[dict] = []
+        grace = 6  # extra steps after the route is done, to finish a pending report
         self._mark(obs, checkpoints, radius, visited)
         for step in range(max_steps):
             if len(visited) == len(checkpoints):
-                break
+                correct = {t for t, s in reports if anomalies.get(t) == s}
+                if len(correct) == len(anomalies) or grace <= 0:
+                    break
+                grace -= 1
             instruction = getattr(runtime, "current_instruction", "") or objective
             action = await asyncio.to_thread(runtime.get_action, obs)  # -> Pilot2D.act(obs, instruction)
             action = dict(action)
             action["step"] = step
             await self._cmd(ws, action)
+            if action.get("cmd") == "report_status":
+                reports.append((action.get("target", ""), action.get("status", "")))
             obs = await self._observe(ws)
             self._mark(obs, checkpoints, radius, visited)
             steps.append(
@@ -234,7 +302,7 @@ class Sim2DRunner(Runner):
                     "reached": sorted(visited),
                 }
             )
-        return visited, steps
+        return visited, reports, steps
 
     @staticmethod
     def _mark(obs: dict, checkpoints: list[str], radius: float, visited: set[str]) -> None:

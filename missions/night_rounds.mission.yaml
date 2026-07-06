@@ -2,24 +2,27 @@ odysseyVersion: "0.1"
 kind: Mission
 
 metadata:
-  name: patrol-2d
+  name: night-rounds-2d
   description: >
-    A 2D patrol robot visits every checkpoint in the facility. A Gemma 4 SPECIALIST
-    plans the route; a Gemma-driven pilot (native function-calling) executes it in the
-    sim2d simulator. No GPU, no real hardware, no VLA weights.
-  tags: [patrol, gemma, sim2d, evolving-robot]
+    Florence, a 2D night-shift ward robot, runs the night round: visit every room,
+    check every patient, and report every anomaly. A Gemma 4 SPECIALIST plans the
+    route; a Gemma-driven pilot (native function-calling) executes it in the sim2d
+    simulator. No GPU, no real hardware, no VLA weights.
+  tags: [night-rounds, healthcare, gemma, sim2d, evolving-robot]
 
 objective: |
-  Patrol the facility: visit the Server Room, Emergency Exit, Supply Closet, and Main
-  Entrance, and report each checkpoint as clear.
+  Run the night round of the ward: visit Room 101, Room 102, Room 103, and the
+  Pharmacy, check on each room's patient, and file every anomaly you confirm with
+  report_status before the round ends.
 
 acceptance_criteria: |
-  The robot reaches every checkpoint (within arrive radius) in the evaluation episode.
+  The robot reaches every checkpoint (within arrive radius) AND correctly reports
+  every patient anomaly present in the episode.
 
 robot:
   # Free-form embodiment label. The engine runs without a ProviderRegistry, so this is
   # never resolved against odyssey's embodiment catalog (see scripts/run_mission.py).
-  embodiment: patrol_bot_2d
+  embodiment: ward_bot_2d
   agents:
     - id: pilot
       role: PILOT
@@ -46,15 +49,16 @@ tasks:
     config:
       runner: cpu_mock
 
-  - name: patrol-eval
+  - name: rounds-eval
     kind: evaluation
     evaluation_type: custom     # -> selects Sim2DRunner
-    benchmark_name: patrol-2d
+    benchmark_name: night-rounds-2d
     num_episodes: 1
     config:
-      max_steps: 30
+      max_steps: 40
       arrive_radius_m: 0.6
-      # pilot: scripted        # uncomment to force the no-API geometry pilot
+      skill: patient-check      # the skill the dream engine evolves (trace metadata)
+      # pilot: scripted         # uncomment to force the no-API geometry pilot
 
 leaderboard:
   publish: false

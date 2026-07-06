@@ -1,0 +1,62 @@
+odysseyVersion: "0.1"
+kind: Mission
+
+metadata:
+  name: stat-delivery-2d
+  description: >
+    A STAT medication run that interrupts the night round: Florence collects the
+    medication at the Pharmacy and delivers it straight to Room 102. Same runner,
+    same brain - only the checkpoints change (config.checkpoints overrides the
+    default "every door" route).
+  tags: [stat-delivery, healthcare, gemma, sim2d, evolving-robot]
+
+objective: |
+  STAT request from Nurse Carlos: collect the medication at the Pharmacy and deliver
+  it to Room 102 immediately. Report any patient anomaly you confirm on the way with
+  report_status.
+
+acceptance_criteria: |
+  The robot reaches the Pharmacy and Room 102 (within arrive radius) AND correctly
+  reports every patient anomaly present in the episode.
+
+robot:
+  embodiment: ward_bot_2d
+  agents:
+    - id: pilot
+      role: PILOT
+      model:
+        source: huggingface
+        base: google/gemma-4-26b-a4b-it
+    - id: route-planner
+      role: SPECIALIST
+      model:
+        source: huggingface
+        base: google/gemma-4-26b-a4b-it
+
+tasks:
+  - name: warmup
+    kind: training
+    training_type: demonstration
+    agent_id: pilot
+    dataset:
+      source: local
+      ref: none
+      format: parquet
+    config:
+      runner: cpu_mock
+
+  - name: stat-eval
+    kind: evaluation
+    evaluation_type: custom     # -> selects Sim2DRunner
+    benchmark_name: stat-delivery-2d
+    num_episodes: 1
+    config:
+      max_steps: 25
+      arrive_radius_m: 0.6
+      checkpoints: [pharmacy, room_102]   # ordered delivery route (overrides doors)
+      skill: nurse-handoff
+
+leaderboard:
+  publish: false
+graph:
+  contribute: false

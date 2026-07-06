@@ -97,7 +97,7 @@ def gate_skill(
     """Scan + check ``skills_dir`` (optionally scoped to one edited skill).
 
     ``node_path`` is the root-relative skill path to scope the check to, e.g.
-    ``.claude/skills/patrol-route/SKILL.md``.
+    ``.claude/skills/patient-check/SKILL.md``.
     """
     skills_dir = Path(skills_dir)
     scan(skills_dir, incremental=incremental)

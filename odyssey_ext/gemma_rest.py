@@ -22,10 +22,25 @@ def strip_thinking(text: str) -> str:
 
 
 class GemmaPlannerGenerator:
-    """TextGenerator adapter for odyssey's LLMPlanner (thinking stripped)."""
+    """TextGenerator adapter for odyssey's LLMPlanner (thinking stripped).
 
-    def __init__(self, brain: GemmaBrain) -> None:
+    ``skill_context`` (the robot's active skill bodies) is prepended as a system
+    message, so an evolved skill changes the *plan*, not just the pilot's steps —
+    e.g. a patient-check rewrite that says "approach the bed when a status reads
+    unknown" makes the planner schedule the bedside approach.
+    """
+
+    def __init__(self, brain: GemmaBrain, skill_context: str = "") -> None:
         self._brain = brain
+        self.skill_context = skill_context
 
     def generate(self, messages: list[dict], image: Any = None) -> str:
+        if self.skill_context:
+            messages = [
+                {
+                    "role": "system",
+                    "content": "Ward protocol (the robot's active skills) - the plan "
+                    "must follow it:\n" + self.skill_context,
+                }
+            ] + list(messages)
         return strip_thinking(self._brain.generate(messages, image=image))

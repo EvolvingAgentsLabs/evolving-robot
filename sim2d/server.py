@@ -45,16 +45,27 @@ class Landmark:
     x: float
     y: float
     type: str  # door | person | obstacle | object
+    status: str = ""  # persons only: resting | on_floor | calling | unresponsive | on_duty
 
 
-ARENA_LANDMARKS: list[Landmark] = [
-    Landmark("server_room", "Server Room", 0.0, 1.6, "door"),
-    Landmark("emergency_exit", "Emergency Exit", -1.5, 1.5, "door"),
-    Landmark("supply_closet", "Supply Closet", 1.3, -0.5, "door"),
-    Landmark("main_entrance", "Main Entrance", -1.0, -1.2, "door"),
-    Landmark("guard_carlos", "Carlos", 0.5, 0.3, "person"),
-    Landmark("fire_extinguisher", "Fire Extinguisher", -0.8, 0.5, "object"),
+# The night ward: rooms (type=door) are the round's checkpoints; each room has a
+# patient nearby. Patient status is only visible within ``status_radius`` (the
+# robot's "lamp"), so checking a patient means actually approaching the bed.
+WARD_LANDMARKS: list[Landmark] = [
+    Landmark("room_101", "Room 101", -1.7, 1.4, "door"),
+    Landmark("room_102", "Room 102", 0.0, 1.6, "door"),
+    Landmark("room_103", "Room 103", 1.6, 1.2, "door"),
+    Landmark("pharmacy", "Pharmacy", 1.0, -1.4, "door"),
+    Landmark("patient_101", "Mr. Alvarez (bed 101)", -2.2, 1.8, "person", "resting"),
+    Landmark("patient_102", "Mrs. Chen (bed 102)", 0.4, 2.1, "person", "resting"),
+    Landmark("patient_103", "Mrs. Gomez (bed 103)", 2.5, -0.1, "person", "resting"),
+    Landmark("nurse_carlos", "Nurse Carlos", -0.2, -0.3, "person", "on_duty"),
+    Landmark("med_cart", "Medication Cart", -0.9, 0.6, "object"),
+    Landmark("defibrillator", "Defibrillator", 0.7, 0.1, "object"),
 ]
+
+# Statuses that count as a clinical anomaly the robot must report.
+ANOMALY_STATUSES = {"on_floor", "calling", "unresponsive"}
 
 START = Position(-0.5, -1.0, 90.0)
 
@@ -80,15 +91,32 @@ class SimulatorHAL:
         landmarks: Optional[list[Landmark]] = None,
         start: Optional[Position] = None,
         observe_radius: float = 3.5,
+        status_radius: float = 0.8,
     ):
-        self.landmarks = landmarks if landmarks is not None else list(ARENA_LANDMARKS)
+        self.landmarks = landmarks if landmarks is not None else list(WARD_LANDMARKS)
         self._start = start or START
         self.pos = Position(self._start.x, self._start.y, self._start.heading)
         self.observe_radius = observe_radius
+        self.status_radius = status_radius  # how close the robot must be to read a person's status
+        self.reports: list[dict] = []  # report_status() calls this episode
 
     def reset(self, position: Optional[Position] = None) -> None:
         p = position or self._start
         self.pos = Position(p.x, p.y, p.heading)
+        self.reports = []
+
+    def set_status(self, landmark_id: str, status: str) -> dict:
+        """Scenario injection: change a landmark's ground-truth status (e.g. a fall)."""
+        for lm in self.landmarks:
+            if lm.id == landmark_id:
+                lm.status = status
+                return {"ok": True, "id": landmark_id, "status": status}
+        return {"ok": False, "error": f"unknown landmark: {landmark_id!r}"}
+
+    def report_status(self, target: str, status: str) -> dict:
+        """The robot files a finding. Correctness is judged by the eval, not here."""
+        self.reports.append({"target": target, "status": status})
+        return {"ok": True, "target": target, "status": status}
 
     def move_forward(self, distance_cm: float) -> dict:
         d = distance_cm / 100.0  # cm -> m
@@ -129,10 +157,15 @@ class SimulatorHAL:
                 "bearing_deg": _r2(bearing),
                 "type": lm.type,
             }
+            if lm.type == "person":
+                # A person's status is only readable up close (the robot's lamp).
+                entry["status"] = lm.status if dist <= self.status_radius else "unknown"
             nearby.append(entry)
             if lm.type == "person" and dist < nearest_person_dist:
                 nearest_person_dist = dist
-                nearest_person = {k: entry[k] for k in ("id", "label", "distance_m", "bearing_deg")}
+                nearest_person = {
+                    k: entry[k] for k in ("id", "label", "distance_m", "bearing_deg", "status")
+                }
         return {
             "position": asdict(self.pos),
             "nearby_landmarks": nearby,
@@ -155,6 +188,7 @@ class SimServer:
             "type": "arena",
             "landmarks": [asdict(lm) for lm in self.hal.landmarks],
             "observe_radius": self.hal.observe_radius,
+            "status_radius": self.hal.status_radius,
             "pose": self.hal.get_position(),
         }
 
@@ -236,6 +270,19 @@ class SimServer:
             text = cmd.get("text", "")
             await self._broadcast({"type": "speak", "text": text, "step": step})
             return {"reply": "speak", "ok": True}
+
+        if op == "report_status":
+            target = cmd.get("target", "")
+            status = cmd.get("status", "")
+            result = self.hal.report_status(target, status)
+            await self._broadcast({"type": "report", "target": target, "status": status, "step": step})
+            return {"reply": "report_status", **result}
+
+        if op == "set_status":
+            result = self.hal.set_status(cmd.get("id", ""), cmd.get("status", ""))
+            if result.get("ok"):
+                await self._broadcast({"type": "status", "id": result["id"], "status": result["status"]})
+            return {"reply": "set_status", **result}
 
         if op in ("run_started", "run_complete", "arrived"):
             await self._broadcast({"type": op, **{k: v for k, v in cmd.items() if k not in ("cmd", "op")}})

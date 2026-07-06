@@ -22,7 +22,10 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-# The robot's five primitives, as OpenAI-style tool definitions for the gemma pilot.
+# Person statuses that count as a clinical anomaly (mirrors sim2d.server.ANOMALY_STATUSES).
+ANOMALY_STATUSES = {"on_floor", "calling", "unresponsive"}
+
+# The robot's primitives, as OpenAI-style tool definitions for the gemma pilot.
 PRIMITIVES = [
     {
         "type": "function",
@@ -68,16 +71,39 @@ PRIMITIVES = [
             "parameters": {"type": "object", "properties": {}},
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "report_status",
+            "description": (
+                "File a clinical finding about a person (by landmark id), e.g. "
+                "report_status(target='patient_103', status='on_floor'). Use the status "
+                "you actually observed; a person's status reads 'unknown' until you are "
+                "close enough to see them."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target": {"type": "string"},
+                    "status": {"type": "string"},
+                },
+                "required": ["target", "status"],
+            },
+        },
+    },
 ]
 
 _PILOT_SYSTEM = (
-    "You pilot a 2D patrol robot. You are given your current sub-goal and a JSON "
-    "observation of nearby landmarks, each with distance_m and bearing_deg "
-    "(bearing is relative to your heading: positive = to your left, negative = to "
-    "your right, 0 = straight ahead). Call exactly ONE tool to make progress "
-    "toward the sub-goal's landmark: first rotate to face it (|bearing| small), "
-    "then move_forward toward it (100 cm = 1 m; stop ~40 cm short). If the target "
-    "is not in view, observe. Call one tool, no prose."
+    "You pilot Florence, a 2D night-shift ward-assist robot. You are given your "
+    "current sub-goal and a JSON observation of nearby landmarks, each with "
+    "distance_m and bearing_deg (bearing is relative to your heading: positive = "
+    "to your left, negative = to your right, 0 = straight ahead). Persons carry a "
+    "status field; it reads 'unknown' until you are close enough to see them. "
+    "Call exactly ONE tool to make progress toward the sub-goal's landmark: first "
+    "rotate to face it (|bearing| small), then move_forward toward it (100 cm = 1 m; "
+    "stop ~40 cm short). If you observe a person whose status is an anomaly "
+    "(on_floor, calling, unresponsive), report it with report_status before moving "
+    "on. If the target is not in view, observe. Call one tool, no prose."
 )
 
 
@@ -96,13 +122,16 @@ class Pilot2D:
         self.checkpoints = checkpoints or []
         self.arrive_radius = arrive_radius_m
         self.step_cap = step_cap_cm
-        # The body of the active skill (e.g. patrol-route), injected into the gemma
+        # The body of the active skills (e.g. patient-check), injected into the gemma
         # pilot's prompt so that evolving the skill actually changes behavior.
         self.skill_context = skill_context
         self._reached: set[str] = set()  # scripted-pilot queue progress
+        self._reported: set[str] = set()  # persons already reported this episode
+        self.fallbacks = 0  # gemma steps degraded to geometry (transient API errors)
 
     def reset(self) -> None:
         self._reached.clear()
+        self._reported.clear()
 
     def act(self, observation: dict, instruction: str) -> dict:
         if self.mode == "gemma":
@@ -114,6 +143,8 @@ class Pilot2D:
     def _act_gemma(self, observation: dict, instruction: str) -> dict:
         import json
 
+        from robot_brain.gemma import GemmaError
+
         system = _PILOT_SYSTEM
         if self.skill_context:
             system += "\n\nActive skill guidance:\n" + self.skill_context
@@ -124,7 +155,14 @@ class Pilot2D:
                 "content": f"Sub-goal: {instruction}\nObservation: {json.dumps(observation)}",
             },
         ]
-        res = self.brain.generate_full(messages, tools=PRIMITIVES, tool_choice="auto")
+        try:
+            res = self.brain.generate_full(messages, tools=PRIMITIVES, tool_choice="auto")
+        except GemmaError as err:
+            # A transient API failure (free-tier throttling, read timeout) must not
+            # kill the mission: degrade this one step to the geometric pilot.
+            self.fallbacks += 1
+            print(f"  (gemma step failed, geometric fallback #{self.fallbacks}: {str(err)[:80]})")
+            return self._act_scripted(observation, instruction)
         if res.tool_calls:
             tc = res.tool_calls[0]
             return {"cmd": tc.name, **(tc.arguments or {})}
@@ -134,6 +172,17 @@ class Pilot2D:
 
     def _act_scripted(self, observation: dict, instruction: str) -> dict:
         landmarks = {l["id"]: l for l in observation.get("nearby_landmarks", [])}
+
+        # Duty of care first: report any visible anomalous person exactly once.
+        # (Statuses beyond the lamp radius read "unknown" and are never reported.)
+        for lm in landmarks.values():
+            if (
+                lm.get("type") == "person"
+                and lm.get("status") in ANOMALY_STATUSES
+                and lm["id"] not in self._reported
+            ):
+                self._reported.add(lm["id"])
+                return {"cmd": "report_status", "target": lm["id"], "status": lm["status"]}
 
         # Advance the queue: any checkpoint currently within radius is reached.
         for cp in self.checkpoints:

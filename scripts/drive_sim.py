@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 1 acceptance: drive the sim2d robot on a scripted 4-point patrol.
+"""Phase 1 acceptance: drive the sim2d robot on a scripted 4-room night round.
 
 This is a *scripted* pilot (pure geometry) to exercise the simulator + WebSocket
 transport + live viewer. The Gemma-driven pilot arrives in Phase 2.
@@ -18,8 +18,8 @@ import websockets
 
 WS_URL = os.environ.get("SIM_WS", "ws://localhost:9091")
 
-# The four patrol checkpoints (the door landmarks).
-CHECKPOINTS = ["server_room", "emergency_exit", "supply_closet", "main_entrance"]
+# The four round checkpoints (the door landmarks).
+CHECKPOINTS = ["room_101", "room_102", "room_103", "pharmacy"]
 
 
 async def call(ws, cmd: dict) -> dict:
@@ -32,13 +32,13 @@ async def call(ws, cmd: dict) -> dict:
         # else: a broadcast state event meant for viewers; ignore here.
 
 
-async def patrol() -> None:
+async def night_round() -> None:
     async with websockets.connect(WS_URL) as ws:
         # First frame is the arena snapshot (landmarks + start pose).
         arena = json.loads(await ws.recv())
         landmarks = {lm["id"]: lm for lm in arena.get("landmarks", [])}
 
-        await call(ws, {"cmd": "run_started", "task": "scripted 4-point patrol"})
+        await call(ws, {"cmd": "run_started", "task": "scripted 4-room night round"})
 
         for cp_id in CHECKPOINTS:
             target = landmarks[cp_id]
@@ -59,17 +59,21 @@ async def patrol() -> None:
 
             # inspect
             obs = await call(ws, {"cmd": "observe"})
-            seen = [f"{l['label']}@{l['distance_m']}m" for l in obs["nearby_landmarks"]]
+            seen = [
+                f"{l['label']}@{l['distance_m']}m"
+                + (f" [{l['status']}]" if l.get("status") else "")
+                for l in obs["nearby_landmarks"]
+            ]
             print(f"[{target['label']:<16}] observe -> {', '.join(seen) or 'nothing in range'}")
-            await call(ws, {"cmd": "speak", "text": f"Checkpoint {target['label']} clear."})
+            await call(ws, {"cmd": "speak", "text": f"{target['label']} checked."})
             await asyncio.sleep(0.6)  # let the viewer animate
 
         await call(ws, {"cmd": "run_complete", "outcome": "success", "turns": len(CHECKPOINTS)})
-        print("\nPhase 1 OK: patrol complete.")
+        print("\nPhase 1 OK: night round complete.")
 
 
 if __name__ == "__main__":
     try:
-        asyncio.run(patrol())
+        asyncio.run(night_round())
     except (ConnectionRefusedError, OSError):
         print("Could not connect. Start the server first:  python -m sim2d.server")

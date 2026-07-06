@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 2 acceptance: run the patrol mission through odyssey's engine.
+"""Phase 2 acceptance: run the night-rounds mission through odyssey's engine.
 
 Builds a MissionEngine with a RunnerRegistry of {CPUMockRunner, Sim2DRunner} and NO
 ProviderRegistry (so odyssey never resolves the 2D embodiment / dummy dataset). The
@@ -7,7 +7,7 @@ warm-up training task routes to cpu_mock; the `evaluation_type: custom` task sel
 Sim2DRunner, which drives the live sim2d over WebSocket.
 
 Start the sim first:  python -m sim2d.server   (open http://localhost:9092 to watch)
-Then:                 python scripts/run_mission.py [missions/patrol.mission.yaml]
+Then:                 python scripts/run_mission.py [missions/night_rounds.mission.yaml]
 """
 
 import asyncio
@@ -29,7 +29,7 @@ from odyssey.telemetry.publishers.base import EventPublisher  # noqa: E402
 from odyssey_ext.sim2d_runner import Sim2DRunner  # noqa: E402
 
 
-async def run_patrol(mission_path: Path, quiet: bool = False):
+async def run_rounds(mission_path: Path, quiet: bool = False):
     """Run the mission through odyssey's engine; return the final MissionRun."""
     spec = load_mission(mission_path)
 
@@ -55,16 +55,27 @@ async def run_patrol(mission_path: Path, quiet: bool = False):
     return await engine.start_mission(run.id)
 
 
-def patrol_success_rate(mission_path: Path | None = None) -> float:
-    """Sync helper: run the patrol and return its eval success_rate (0..1)."""
+def rounds_summary(mission_path: Path | None = None) -> dict:
+    """Sync helper: run the mission and return the eval result_summary dict."""
     import asyncio as _asyncio
 
-    mp = mission_path or (ROOT / "missions" / "patrol.mission.yaml")
-    final = _asyncio.run(run_patrol(mp, quiet=True))
+    mp = mission_path or (ROOT / "missions" / "night_rounds.mission.yaml")
+    final = _asyncio.run(run_rounds(mp, quiet=True))
     for task in final.tasks:
         if task.spec.kind == "evaluation" and task.result_summary:
-            return float(task.result_summary.get("success_rate", 0.0))
-    return 0.0
+            return dict(task.result_summary)
+    return {}
+
+
+def rounds_score(mission_path: Path | None = None) -> float:
+    """Sync helper: run the mission and return its eval score (0..1).
+
+    Uses odyssey's ``performance_score`` (mean episode return), which grants partial
+    credit — "finished the route but missed the fallen patient" scores 0.8, not 0 —
+    the number the evolution loop keeps or rolls back on.
+    """
+    summary = rounds_summary(mission_path)
+    return float(summary.get("performance_score", summary.get("success_rate", 0.0)))
 
 
 class _QuietPublisher(EventPublisher):
@@ -75,7 +86,7 @@ class _QuietPublisher(EventPublisher):
 
 
 async def _run(mission_path: Path) -> int:
-    final = await run_patrol(mission_path)
+    final = await run_rounds(mission_path)
 
     print("\n" + "=" * 60)
     print(f"mission {final.id}  status={final.status.value}")
@@ -92,7 +103,7 @@ async def _run(mission_path: Path) -> int:
 
 
 def main() -> int:
-    mission = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "missions" / "patrol.mission.yaml"
+    mission = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "missions" / "night_rounds.mission.yaml"
     if not mission.exists():
         print(f"mission not found: {mission}")
         return 2

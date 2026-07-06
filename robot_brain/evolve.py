@@ -25,7 +25,7 @@ from agentvcs import Repository, crystallize
 from agentvcs.repository import RepoError
 
 DEFAULT_MANIFEST = {
-    "goal": "Patrol the facility: visit every checkpoint and report it clear.",
+    "goal": "Run the night rounds: visit every room, check every patient, report every anomaly.",
     "models": [{"provider": "google", "model": "gemma-4-26b-a4b-it"}],
     "mode": "vcs",
     # Version the odyssey mission trace alongside code+goal. The db path resolves
@@ -33,6 +33,16 @@ DEFAULT_MANIFEST = {
     # Uses agentvcs's `odyssey` trace provider (dogfooded in Phase 6).
     "trace": {"provider": "odyssey", "db": "../../.odyssey/missions.db"},
 }
+
+
+def _odyssey_provider_available() -> bool:
+    """The odyssey trace provider was contributed to agentvcs on a feature branch;
+    an installed agentvcs may not carry it yet. Degrade to trace-less commits."""
+    try:
+        from agentvcs.traces import _PROVIDERS
+        return "odyssey" in _PROVIDERS
+    except Exception:
+        return False
 
 
 @dataclass
@@ -55,10 +65,11 @@ class EvolutionController:
         if (self.skills_dir / ".agentvcs").exists():
             self.repo = Repository.open(self.skills_dir)
         else:
-            self.repo = Repository.init(
-                self.skills_dir,
-                manifest=json.dumps(manifest or DEFAULT_MANIFEST, indent=2),
-            )
+            m = dict(manifest or DEFAULT_MANIFEST)
+            if m.get("trace", {}).get("provider") == "odyssey" and not _odyssey_provider_available():
+                m.pop("trace")
+                print("(installed agentvcs has no 'odyssey' trace provider; committing without trace capture)")
+            self.repo = Repository.init(self.skills_dir, manifest=json.dumps(m, indent=2))
 
     # -- thin agentvcs wrappers ---------------------------------------------
     def commit(self, message: str) -> str:
@@ -85,7 +96,7 @@ class EvolutionController:
         self,
         dream_fn: Callable[[], object],
         score_fn: Callable[[], float],
-        target_skill: str = "patrol-route",
+        target_skill: str = "patient-check",
         keep_ratio: float = 0.9,
     ) -> StepResult:
         """One baseline -> dream -> commit -> re-score -> keep/rollback cycle.
@@ -96,7 +107,7 @@ class EvolutionController:
         """
         baseline_score = score_fn()
         if self.head() is None:
-            self.commit(f"baseline: skills at success_rate={baseline_score:.2f}")
+            self.commit(f"baseline: skills at performance={baseline_score:.2f}")
 
         outcome = dream_fn()
         if getattr(outcome, "status", None) != "kept":
@@ -108,7 +119,7 @@ class EvolutionController:
 
         if new_score < baseline_score * keep_ratio:
             reason = (
-                f"success_rate {new_score:.2f} < {baseline_score:.2f} baseline "
+                f"performance {new_score:.2f} < {baseline_score:.2f} baseline "
                 f"(keep_ratio {keep_ratio}); revert {target_skill}"
             )
             self.rollback(reason=reason)

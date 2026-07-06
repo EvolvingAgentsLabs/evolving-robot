@@ -23,3 +23,10 @@ traces/
 
 # OS
 .DS_Store
+**/.skill-map/backups/
+**/.skill-map/settings.json
+tools/gifcap/node_modules/
+tools/gifcap/frames/
+tools/gifcap/*.png
+tools/gifcap/*.gif
+tools/gifcap/package*.json

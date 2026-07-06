@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<title>evolving-robot — sim2d</title>
+<title>evolving-robot — night shift</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #12121f; color: #e0e0e0; font-family: 'Courier New', monospace;
@@ -22,6 +22,8 @@
   .k-move .n, .k-rotate .n { color: #7bed9f; }
   .k-observe .n { color: #f5c542; }
   .k-speak .n { color: #53cfcf; }
+  .k-report .n { color: #ff6b6b; font-weight: bold; }
+  .k-status .n { color: #ffa502; }
   .k-arrived .n, .k-run_complete .n { color: #a29bfe; font-weight: bold; }
   .k-run_started .n { color: #a29bfe; }
   .k-halt .n { color: #e94560; }
@@ -36,7 +38,7 @@
 </head>
 <body>
   <div id="top">
-    <h1>evolving-robot · sim2d</h1>
+    <h1>evolving-robot · Florence — night shift 🌙</h1>
     <div class="info">
       <span id="conn" class="off">● connecting</span>
       <span class="k">events <b id="n-events">0</b></span>
@@ -54,13 +56,14 @@
   </div>
 
   <div id="side">
-    <h2>Arena</h2>
+    <h2>Ward</h2>
     <div id="landmarks"></div>
     <h2>Legend</h2>
-    <div class="lm"><span class="dot" style="background:#53cfcf"></span> door</div>
-    <div class="lm"><span class="dot" style="background:#f5c542"></span> person</div>
+    <div class="lm"><span class="dot" style="background:#53cfcf"></span> room / door</div>
+    <div class="lm"><span class="dot" style="background:#f5c542"></span> patient / staff</div>
+    <div class="lm"><span class="dot" style="background:#ff6b6b"></span> anomaly (on_floor / calling / unresponsive)</div>
     <div class="lm"><span class="dot" style="background:#a29bfe"></span> object</div>
-    <div class="lm"><span class="dot" style="background:#e94560"></span> robot</div>
+    <div class="lm"><span class="dot" style="background:#e94560"></span> Florence (the dashed ring is her lamp — status is readable inside it)</div>
   </div>
 
 <script>
@@ -70,8 +73,9 @@ const W = cv.width, H = cv.height;
 const SCALE = 110;                 // pixels per meter
 const cx = W / 2, cy = H / 2;      // world origin at canvas center
 const COLORS = { door: '#53cfcf', person: '#f5c542', object: '#a29bfe', obstacle: '#e94560' };
+const ANOMALY = new Set(['on_floor', 'calling', 'unresponsive']);
 
-let arena = { landmarks: [], observe_radius: 3.5 };
+let arena = { landmarks: [], observe_radius: 3.5, status_radius: 0.8 };
 let pose = { x: 0, y: 0, heading: 90 };   // target pose
 let shown = { x: 0, y: 0, heading: 90 };  // interpolated pose
 let trail = [];
@@ -101,6 +105,11 @@ function draw() {
   ctx.beginPath(); ctx.arc(sx(shown.x), sy(shown.y), arena.observe_radius * SCALE, 0, Math.PI * 2);
   ctx.strokeStyle = 'rgba(83,207,207,0.12)'; ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([]);
 
+  // the lamp: the ring inside which a person's status is readable
+  ctx.beginPath(); ctx.arc(sx(shown.x), sy(shown.y), (arena.status_radius || 0.8) * SCALE, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,213,110,0.05)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,213,110,0.35)'; ctx.setLineDash([6, 5]); ctx.stroke(); ctx.setLineDash([]);
+
   // trail
   ctx.beginPath();
   trail.forEach((p, i) => { const fx = sx(p.x), fy = sy(p.y); i ? ctx.lineTo(fx, fy) : ctx.moveTo(fx, fy); });
@@ -108,9 +117,21 @@ function draw() {
 
   // landmarks
   for (const lm of arena.landmarks) {
-    const x = sx(lm.x), y = sy(lm.y), col = COLORS[lm.type] || '#888';
+    const x = sx(lm.x), y = sy(lm.y);
+    const alarmed = lm.type === 'person' && ANOMALY.has(lm.status);
+    const col = alarmed ? '#ff6b6b' : (COLORS[lm.type] || '#888');
+    if (alarmed) {  // pulse a halo around a patient in trouble
+      const pulse = 12 + 5 * Math.sin(performance.now() / 220);
+      ctx.beginPath(); ctx.arc(x, y, pulse, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,107,107,0.55)'; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1;
+    }
     ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
-    ctx.fillStyle = '#c7c7dd'; ctx.font = '11px Courier New'; ctx.fillText(lm.label, x + 12, y + 4);
+    const tag = lm.type === 'person' && lm.status ? `${lm.label} [${lm.status}]` : lm.label;
+    ctx.fillStyle = alarmed ? '#ff9b9b' : '#c7c7dd';
+    ctx.font = '11px Courier New';
+    ctx.textAlign = (x > W - 130) ? 'right' : 'left';  // keep labels inside the canvas
+    ctx.fillText(tag, ctx.textAlign === 'right' ? x - 12 : x + 12, y + 4);
+    ctx.textAlign = 'left';
   }
 
   // robot (triangle pointing along heading; y flips so negate for screen)
@@ -124,9 +145,13 @@ function draw() {
 requestAnimationFrame(draw);
 
 function renderLandmarks() {
-  document.getElementById('landmarks').innerHTML = arena.landmarks.map(lm =>
-    `<div class="lm"><span class="dot" style="background:${COLORS[lm.type]||'#888'}"></span>${lm.label} <span style="color:#5a5a72">(${lm.x}, ${lm.y})</span></div>`
-  ).join('');
+  document.getElementById('landmarks').innerHTML = arena.landmarks.map(lm => {
+    const alarmed = lm.type === 'person' && ANOMALY.has(lm.status);
+    const col = alarmed ? '#ff6b6b' : (COLORS[lm.type] || '#888');
+    const status = lm.type === 'person' && lm.status
+      ? ` <span style="color:${alarmed ? '#ff6b6b' : '#5a5a72'}">[${lm.status}]</span>` : '';
+    return `<div class="lm"><span class="dot" style="background:${col}"></span>${lm.label}${status} <span style="color:#5a5a72">(${lm.x}, ${lm.y})</span></div>`;
+  }).join('');
 }
 
 function log(kind, text) {
@@ -135,7 +160,8 @@ function log(kind, text) {
   const row = document.createElement('div');
   row.className = 'e k-' + kind;
   row.innerHTML = `<span class="t">${now}</span><span class="n">${kind}</span>${text || ''}`;
-  el.appendChild(row); el.scrollTop = el.scrollHeight;
+  el.prepend(row);                 // newest first: always visible, no scroll games
+  while (el.children.length > 200) el.removeChild(el.lastChild);
   document.getElementById('n-events').textContent = (++events);
 }
 
@@ -165,6 +191,13 @@ function connect() {
       case 'rotate': log('rotate', `${m.direction} ${m.degrees}°`); break;
       case 'observe': log('observe', `${m.landmarks} landmark(s) in range`); break;
       case 'speak': log('speak', `"${m.text}"`); break;
+      case 'report': log('report', `${m.target}: ${m.status}`); break;
+      case 'status': {
+        const lm = arena.landmarks.find(l => l.id === m.id);
+        if (lm) { lm.status = m.status; renderLandmarks(); }
+        log('status', `${m.id} -> ${m.status}`);
+        break;
+      }
       case 'arrived': log('arrived', m.reason || m.goalId || ''); break;
       case 'halt': log('halt', m.status || ''); break;
       case 'run_started': log('run_started', m.task || ''); trail = []; break;

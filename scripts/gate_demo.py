@@ -17,32 +17,32 @@ sys.path.insert(0, str(ROOT))
 from robot_brain.skill_gate import gate_skill  # noqa: E402
 
 SKILLS = ROOT / "robot_brain" / "skills"
-PATROL = ".claude/skills/patrol-route/SKILL.md"
+TARGET = ".claude/skills/patient-check/SKILL.md"
 
 
 def main() -> int:
-    patrol_file = SKILLS / PATROL
+    skill_file = SKILLS / TARGET
 
     print("1) clean skill set")
-    r = gate_skill(SKILLS, node_path=PATROL)
+    r = gate_skill(SKILLS, node_path=TARGET)
     print(f"   ok={r.ok}  errors={len(r.errors)}  warnings={len(r.warnings)}")
     if not r.ok:
         print("   unexpected: clean set should pass"); return 1
 
     print("\n2) introduce a broken cross-reference (@ghost-skill)")
-    original = patrol_file.read_text()
+    original = skill_file.read_text()
     try:
-        patrol_file.write_text(original + "\n6. If lost, escalate via @ghost-skill.\n")
-        r = gate_skill(SKILLS, node_path=PATROL)
+        skill_file.write_text(original + "\n6. If lost, escalate via @ghost-skill.\n")
+        r = gate_skill(SKILLS, node_path=TARGET)
         print(f"   ok={r.ok}  errors={len(r.errors)}")
         if r.ok:
             print("   unexpected: broken ref should be rejected"); return 1
         print("   " + r.feedback().replace("\n", "\n   "))
     finally:
-        patrol_file.write_text(original)
+        skill_file.write_text(original)
 
     print("\n3) after revert")
-    r = gate_skill(SKILLS, node_path=PATROL)
+    r = gate_skill(SKILLS, node_path=TARGET)
     print(f"   ok={r.ok}  errors={len(r.errors)}")
 
     print("\nPhase 3 OK" if r.ok else "\nPhase 3 FAILED")

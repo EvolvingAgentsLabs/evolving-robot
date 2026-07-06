@@ -340,6 +340,54 @@ y meter primero las costuras riesgosas (polyglot, WS, protocolos odyssey).
 - **Aceptación:** `pytest -q` de agentvcs = **190 passed**; trace de odyssey capturado en un
       commit real; bucle live cableado y verificado.
 
+### Fase 7 — The Night Shift: escenario de salud  ✅ HECHA (2026-07-05)
+**Objetivo:** re-tematizar el demo a un caso médico "wow" — una ronda nocturna de enfermería
+donde el robot ("Florence") aprende de un incidente real — sin tocar la mecánica del loop.
+- [x] **Mundo hospitalario** (`sim2d/server.py`): `WARD_LANDMARKS` — Rooms 101/102/103 +
+      Pharmacy (`door` = checkpoints), 3 pacientes + Nurse Carlos (`person` con `status`),
+      med cart + defibrillator. `START` y trigonometría intactos.
+- [x] **Estado clínico:** `Landmark.status` mutable; `observe()` expone el status de una
+      persona sólo dentro de `status_radius` (0.8 m, "la lámpara de Florence"); fuera de él
+      lee `unknown`. Geometría verificada: la paciente de la 103 queda a 1.87 m de su puerta
+      → invisible desde el protocolo v1.
+- [x] **Primitivas nuevas:** `report_status(target, status)` (el robot presenta un hallazgo;
+      la corrección la juzga el eval, no el sim) y `set_status(id, status)` (inyección de
+      escenario). Broadcast `report`/`status` al viewer.
+- [x] **Scoring clínico** (`Sim2DRunner`): éxito = todos los checkpoints + todas las anomalías
+      (`on_floor`/`calling`/`unresponsive`) correctamente reportadas. Crédito parcial en
+      `performance_score` (ruta completa con caída perdida = 0.8, grade F). `config.checkpoints`
+      permite rutas ordenadas (misión STAT). El trace escribe líneas `INCIDENT:` que alimentan
+      el dream.
+- [x] **Skills clínicas:** `night-rounds`, `patient-check` (v1 con el defecto sembrado:
+      "protocolo de puerta — si el status es unknown, asumir resting"), `nurse-handoff`.
+      Gate de skill-map verificado sobre el set nuevo (acepta limpio, rechaza `@ghost-skill`).
+- [x] **Misiones:** `night_rounds.mission.yaml` (max_steps 40) y `stat_delivery.mission.yaml`
+      (Pharmacy → Room 102, checkpoints ordenados).
+- [x] **`scripts/night_shift.py`** (demo insignia): inyecta la caída → Noche 1 (la pierde,
+      0.8/F) → dream (reescribe patient-check, gateado) → commit → Noche 2 (re-score) →
+      keep/rollback(reason) → freeze si success=1.0 → comparación Noche 1 vs Noche 2 +
+      genealogía agentvcs.
+- [x] **Viewer:** lámpara (anillo de status_radius), pacientes con status y halo rojo pulsante
+      en anomalía, eventos `report`/`status` en el log.
+- [x] **El planner también lee las skills** (`GemmaPlannerGenerator(skill_context=...)`):
+      antes la skill evolucionada sólo influía en el pilot, pero el pilot sigue las
+      sub-instrucciones del planner → una reescritura de patient-check no podía cambiar el
+      plan. Verificado en vivo: una Noche 2 sin este fix llegó 3/4 sin acercarse a la paciente
+      → rollback real (`performance 0.60 < 0.80 baseline`), correcto y registrado en el ledger.
+- [x] **Robustez ante free tier de AI Studio:** `Pilot2D._act_gemma` degrada un paso fallido
+      al pilot geométrico (contador `fallbacks`); `Sim2DRunner` reintenta el episodio sin
+      planner si `begin_episode` muere (ReadTimeout a través de retries); `night_shift.py`
+      aborta con mensaje claro si la misión no devuelve summary.
+- [x] **Fix de entorno:** agentvcs estaba parado en una rama docs pre-merge → `checkout main`
+      (contiene PR #22: provider `odyssey` + `rollback(reason=)`). Además `EvolutionController`
+      ahora degrada con gracia (commit sin trace + aviso) si el agentvcs instalado no trae el
+      provider.
+- **Aceptación (verificada):** misión limpia = A/1.0; con caída inyectada = F/0.8 con
+      `INCIDENT` en el trace; anomalía visible (nurse `calling` en ruta) = reportada → A/1.0;
+      `gate_demo`/`dream_demo`/`evolve_demo` OK con el set clínico (ledger:
+      `performance 0.40 < 1.00 baseline (keep_ratio 0.9); revert patient-check`);
+      `night_shift.py` sin key corre Noche 1 determinista y limpia al salir.
+
 ---
 
 ## 4. Riesgos y decisiones abiertas

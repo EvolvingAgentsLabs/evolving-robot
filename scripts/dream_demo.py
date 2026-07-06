@@ -5,8 +5,8 @@ Two paths:
   A) DISCARD (deterministic, no API key): a rewrite that hallucinates a broken @reference is
      retried with skill-map's feedback, then reverted. Proves the safety gate + revert.
   B) KEEP (needs a Gemma key): the engine reads the latest trace and asks Gemma to rewrite
-     patrol-route; a valid rewrite passes the gate and is kept. Uses the newest trace in
-     traces/, synthesizing a failure trace if none exists.
+     patient-check; a valid rewrite passes the gate and is kept. Uses the newest trace in
+     traces/, synthesizing a missed-fall failure trace if none exists.
 
 Run a real mission first (scripts/run_mission.py) to dream over a real trace, or just run
 this standalone.
@@ -27,7 +27,7 @@ from robot_brain.skills import get_skill, load_skills  # noqa: E402
 
 SKILLS = ROOT / "robot_brain" / "skills"
 TRACES = ROOT / "traces"
-TARGET = "patrol-route"
+TARGET = "patient-check"
 
 
 def _digest(p: Path) -> str:
@@ -39,15 +39,21 @@ def _ensure_trace() -> None:
         return
     TRACES.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
-    (TRACES / f"{ts}_patrol-2d.md").write_text(
-        "---\nbenchmark: patrol-2d\nskill: patrol-route\npilot: gemma\nsuccess_rate: 0.500\n---\n\n"
-        "# Patrol trace: patrol-2d\n\n## Episode 1 - reached 2/4 (missed: supply_closet, main_entrance)\n"
-        "- step  0 [go to server room] rotate_left(degrees=30) -> (-0.4, -0.9, 120deg)\n"
-        "- step  1 [go to server room] move_forward(distance_cm=50) -> (0.0, 1.2, 90deg)\n"
-        "- step  2 [go to emergency exit] observe() -> (0.0, 1.2, 90deg)\n"
-        "- step  3 [go to emergency exit] observe() -> (0.0, 1.2, 90deg)\n"
-        "- step  4 [go to supply closet] observe() -> (0.0, 1.2, 90deg)\n"
-        "Note: many wasted observe() calls; never advanced to supply_closet or main_entrance.\n"
+    (TRACES / f"{ts}_night-rounds-2d.md").write_text(
+        "---\nbenchmark: night-rounds-2d\nskill: patient-check\npilot: gemma\nsuccess_rate: 0.000\n---\n\n"
+        "# Night-rounds trace: night-rounds-2d\n\n"
+        "## Episode 1 - reached 4/4 (missed: none)\n"
+        "Anomalies present: {'patient_103': 'on_floor'}. Correctly reported: none.\n"
+        "INCIDENT: patient_103 was 'on_floor' and was NEVER reported. Its status read "
+        "'unknown' from the route - a person's status is only visible within ~0.8 m, so "
+        "the robot must approach the patient to check them.\n"
+        "- step  0 [go to room 101] rotate_left(degrees=30) -> (-0.4, -0.9, 120deg)\n"
+        "- step  1 [go to room 101] move_forward(distance_cm=50) -> (-1.6, 1.3, 120deg)\n"
+        "- step  2 [check the patient] observe() -> (-1.6, 1.3, 120deg)\n"
+        "- step  3 [go to room 103] move_forward(distance_cm=60) -> (1.5, 1.1, 0deg)\n"
+        "- step  4 [check the patient] observe() -> (1.5, 1.1, 0deg)\n"
+        "Note: patient_103 (Mrs. Gomez) read status 'unknown' from the doorway of Room 103 "
+        "and the robot moved on to the Pharmacy without approaching her.\n"
     )
 
 
@@ -68,7 +74,7 @@ def main() -> int:
         print("   FAIL: expected discard + revert"); return 1
 
     # --- B) keep path (needs Gemma) ---
-    print("\nB) KEEP: Gemma rewrites patrol-route from the latest trace")
+    print("\nB) KEEP: Gemma rewrites patient-check from the latest trace")
     try:
         brain = make_brain()
     except GemmaError as e:

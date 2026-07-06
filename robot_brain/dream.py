@@ -1,7 +1,8 @@
-"""Dream engine: the robot rewrites one of its own skills from patrol failures.
+"""Dream engine: the robot rewrites one of its own skills from mission failures.
 
 Flow (per the plan):
-  1. Read the latest mission trace (missed checkpoints, inefficient steps).
+  1. Read the latest mission trace (missed patient anomalies, missed checkpoints,
+     inefficient steps).
   2. Ask Gemma to rewrite the target ``SKILL.md`` body to fix them.
   3. Gate the rewrite with skill-map (``gate_skill``). If it fails, feed the exact
      skill-map error back to Gemma and retry. If it still fails, revert and discard.
@@ -27,10 +28,12 @@ from odyssey_ext.gemma_rest import strip_thinking
 _SKILL_BLOCK = re.compile(r"---\s*SKILL\s*---\s*\n(.*?)\n---\s*END SKILL\s*---", re.DOTALL | re.IGNORECASE)
 
 _SYSTEM = (
-    "You improve a single robot patrol skill based on a mission trace. Rewrite the skill "
-    "body to fix the failures you see in the trace (missed checkpoints, wasted steps, poor "
-    "aiming). Keep it concise and actionable for a 2D robot whose primitives are "
-    "move_forward(cm), rotate_left(deg), rotate_right(deg), observe(), speak(text), stop(). "
+    "You improve a single skill of a night-shift ward robot based on a mission trace. "
+    "Rewrite the skill body to fix the failures you see in the trace (missed patient "
+    "anomalies, missed checkpoints, wasted steps, poor aiming). Keep it concise and "
+    "actionable for a 2D robot whose primitives are move_forward(cm), rotate_left(deg), "
+    "rotate_right(deg), observe(), speak(text), report_status(target, status), stop(). "
+    "A person's status reads 'unknown' until the robot is within ~0.8 m of them. "
     "IMPORTANT: keep the existing @cross-references to sibling skills and DO NOT invent new "
     "@references (only these siblings exist: {siblings}). Output ONLY the new body inside one "
     "fenced block:\n--- SKILL ---\n<new markdown body>\n--- END SKILL ---"
@@ -89,7 +92,7 @@ class DreamEngine:
         skill.path.write_text(original)  # revert
         return DreamOutcome("discarded", skill.name, feedback or "no valid rewrite", max_retries + 1, gate)
 
-    def dream(self, target_skill: str = "patrol-route", max_retries: int = 2) -> DreamOutcome:
+    def dream(self, target_skill: str = "patient-check", max_retries: int = 2) -> DreamOutcome:
         trace = self.latest_trace()
         if not trace:
             return DreamOutcome("no_trace", target_skill, f"no trace in {self.traces_dir}")

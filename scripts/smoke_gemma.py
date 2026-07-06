@@ -44,8 +44,8 @@ def main() -> int:
     # 1) plain text
     text = brain.generate(
         [
-            {"role": "system", "content": "You are a terse patrol robot. Answer in one short sentence."},
-            {"role": "user", "content": "You are at the main entrance. What is your first patrol step?"},
+            {"role": "system", "content": "You are a terse night-shift ward robot. Answer in one short sentence."},
+            {"role": "user", "content": "You are at the nurses' station. What is your first step of the night round?"},
         ]
     )
     print("TEXT:", text.strip(), "\n")
