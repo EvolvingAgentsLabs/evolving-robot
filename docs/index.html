@@ -147,7 +147,7 @@
 <div class="wrap">
   <header class="mast">
     <div class="lamp-ring" aria-hidden="true"></div>
-    <div class="kicker"><span class="moon">🌙 the night shift</span><span>evolving agents labs</span><span>research demo — not a medical device</span></div>
+    <div class="kicker"><span class="moon">🌙 the night shift</span><span>research demo — not a medical device</span></div>
     <h1>My robot missed a fallen patient. Then it <em>rewrote its own protocol</em>.</h1>
     <p class="deck">An embodied agent that turns tonight's incident into tomorrow's protocol — safely, reversibly, and with a full audit trail.</p>
     <div class="byline">
@@ -157,6 +157,8 @@
   </header>
 
   <article>
+    <p class="aside">Before anything else: this work exists because of <a href="https://github.com/crystian">Crystian</a> (skill-map), <a href="https://github.com/SoyGema">SoyGema</a> (odyssey), <a href="https://github.com/ismaelfaro">Ismael Faro</a> (nanoLoop, agentvcs collaborator), and Google DeepMind's decision to release <strong>Gemma&nbsp;4</strong> as an open model. Each of their projects, independently, lands on a real problem of AI agents in the physical world — the full thanks are at the <a href="#gracias">end of this post</a>.</p>
+
     <p>At 3 a.m. on a hospital ward, a patient slides out of bed and can't get up. Nobody sees it. The night shift has the worst staff-to-patient ratio of the day, and unwitnessed falls are exactly the kind of incident that turns into a tragedy by morning.</p>
 
     <p>This is not a hypothetical niche: healthcare is short about <strong>4.5 million nurses</strong> by 2030, and robots are already working those wards. Moxi has made over a million hospital deliveries. Aeo patrols eldercare facilities in Japan at night, checking on residents. Nurabot is being validated in Taiwanese hospitals to cut nursing workload by a third.</p>
@@ -193,6 +195,11 @@
     </div>
 
     <p><strong>"A broken edit can never land" needs a gate.</strong> <a href="https://github.com/crystian/skill-map">skill-map</a> (by <a href="https://github.com/crystian">@crystian</a>) reads every skill file, builds the graph of how they reference each other, and turns broken references, name collisions, and schema violations into hard errors. Every self-edit must pass it. A rejected edit goes back to the model with the exact error as feedback; a persistent failure is reverted. The protocol book can never contradict itself.</p>
+
+    <figure>
+      <a href="https://skill-map.ai/"><img src="img/skill-map.jpg" alt="skill-map — a graph of skills, agents, and commands with validated cross-references"></a>
+      <figcaption>skill-map models the robot's skills as a graph with validated cross-references — the semantic gate every self-edit must pass. <a href="https://skill-map.ai/">skill-map.ai</a></figcaption>
+    </figure>
 
     <p><strong>"Rolled back with the reason on record, auditable" needs version control built for agents.</strong> <a href="https://github.com/EvolvingAgentsLabs/agentvcs">agentvcs</a> commits skills + goal + the mission trace as one object, so every protocol version carries the evidence of what it actually did. It gives the loop its two survival instincts: <code>rollback(reason=…)</code> when a change makes things worse, and <code>crystallize</code> to freeze a verified skill set. The signed protocol book, where every revision has an author, a reason, and an outcome. A key component of the agentvcs ecosystem is <a href="https://github.com/ismaelfaro/nanoLoop"><strong>nanoLoop</strong></a> by <a href="https://github.com/ismaelfaro"><strong>Ismael Faro</strong></a> — also an agentvcs collaborator — the minimal agent loop that serves as the live reconciliation brain behind agentvcs's multidimensional <code>merge --reconcile</code>, and the tool that built that feature in the first place.</p>
 
@@ -243,12 +250,26 @@ so the robot must approach the patient to check them.</code></pre>
 
     <p>The code, the build log, and the full write-up:<br>
     👉 <a href="https://github.com/EvolvingAgentsLabs/evolving-robot"><strong>github.com/EvolvingAgentsLabs/evolving-robot</strong></a></p>
+
+    <h2 id="gracias">Thank you</h2>
+
+    <p>This demo is a composition, and the credit belongs to the people whose projects made the parts:</p>
+
+    <p><strong><a href="https://github.com/crystian">Crystian</a></strong> — for <a href="https://skill-map.ai/">skill-map</a>. An agent in the physical world needs to <em>know what it can do</em> — and, the moment it starts changing itself, to be structurally unable to break that knowledge. skill-map turns a folder of capabilities into a verified graph, and that graph is the difference between evolution and entropy.</p>
+
+    <p><strong><a href="https://github.com/SoyGema">SoyGema</a></strong> (lovell AI) — for <a href="https://github.com/lovellai-dev/odyssey">odyssey</a>. Embodied agents don't improve without an incorruptible scoreboard: a mission, a runner, an honest grade. odyssey brings the discipline of measured missions to robot brains, and its seams are so clean that a toy 2D ward and a REST-based Gemma slotted in without forking a line.</p>
+
+    <p><strong><a href="https://github.com/ismaelfaro">Ismael Faro</a></strong> — for <a href="https://github.com/ismaelfaro/nanoLoop">nanoLoop</a> and his collaboration on <a href="https://github.com/EvolvingAgentsLabs/agentvcs">agentvcs</a>. Physical-world agents need a reversible identity — a history that can reconcile, roll back, and explain itself — and nanoLoop is the minimal agent loop that acts as the live reconciliation brain behind agentvcs's multidimensional merge. Proof that agency doesn't need weight.</p>
+
+    <p><strong>Google DeepMind</strong> — for <a href="https://deepmind.google/models/gemma/">Gemma&nbsp;4</a>, and for the decision to release it openly. One commodity model — no GPU, no local weights, a free REST API — plans the round, pilots every motor primitive through native function-calling, and rewrites the robot's own skills. Open-sourcing a model this capable is what puts embodied, self-improving agents within reach of anyone with a laptop.</p>
+
+    <p>What strikes me most is that none of these projects was built for this demo — and yet each one lands, with uncanny precision, on a different hard problem of AI agents in the physical world: knowing your capabilities, measuring your outcomes, keeping your history reversible, and thinking cheaply at the edge. They compose because they're each honest about the problem they solve. Thank you.</p>
   </article>
 
   <footer>
     <div>Built on <a href="https://skill-map.ai/">skill-map</a> by <a href="https://github.com/crystian">@crystian</a> · <a href="https://odyssey.dev/">odyssey</a> by <a href="https://github.com/SoyGema">@SoyGema</a> · <a href="https://github.com/EvolvingAgentsLabs/agentvcs">agentvcs</a> with <a href="https://github.com/ismaelfaro/nanoLoop">nanoLoop</a> by <a href="https://github.com/ismaelfaro">@ismaelfaro</a>.</div>
     <div class="sig">If you're building agents that need to change themselves, start with the guardrails, not the loop. 🌙</div>
-    <div>Apache 2.0 © Evolving Agents Labs — research demo, not a medical device.</div>
+    <div>Apache 2.0 — research demo, not a medical device.</div>
   </footer>
 </div>
 

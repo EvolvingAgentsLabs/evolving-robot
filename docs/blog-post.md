@@ -1,5 +1,7 @@
 # My robot missed a fallen patient. Then it rewrote its own protocol.
 
+*Before anything else: this work exists because of [Crystian](https://github.com/crystian) (skill-map), [SoyGema](https://github.com/SoyGema) (odyssey), [Ismael Faro](https://github.com/ismaelfaro) (nanoLoop, agentvcs collaborator), and Google DeepMind's decision to release **Gemma 4** as an open model. Each of their projects, independently, lands on a real problem of AI agents in the physical world — the full thanks are at the end of this post.*
+
 At 3 a.m. on a hospital ward, a patient slides out of bed and can't get up. Nobody sees it. The night shift has the worst staff-to-patient ratio of the day, and unwitnessed falls are exactly the kind of incident that turns into a tragedy by morning.
 
 This is not a hypothetical niche: healthcare is short about **4.5 million nurses** by 2030, and robots are already working those wards. Moxi has made over a million hospital deliveries. Aeo patrols eldercare facilities in Japan at night, checking on residents. Nurabot is being validated in Taiwanese hospitals to cut nursing workload by a third.
@@ -91,4 +93,18 @@ That discipline turns out to be buildable today, from parts: a **scoreboard** (o
 The code, the build log, and the full write-up are here:
 👉 [github.com/EvolvingAgentsLabs/evolving-robot](https://github.com/EvolvingAgentsLabs/evolving-robot)
 
-*Built on [skill-map](https://skill-map.ai/) by [@crystian](https://github.com/crystian), [odyssey](https://github.com/lovellai-dev/odyssey) by [@SoyGema](https://github.com/SoyGema), and [agentvcs](https://github.com/EvolvingAgentsLabs/agentvcs) with [nanoLoop](https://github.com/ismaelfaro/nanoLoop) by [@ismaelfaro](https://github.com/ismaelfaro). If you're building agents that need to change themselves, start with the guardrails, not the loop.*
+## Thank you
+
+This demo is a composition, and the credit belongs to the people whose projects made the parts:
+
+**[Crystian](https://github.com/crystian)** — for [skill-map](https://skill-map.ai/). An agent in the physical world needs to *know what it can do* — and, the moment it starts changing itself, to be structurally unable to break that knowledge. skill-map turns a folder of capabilities into a verified graph, and that graph is the difference between evolution and entropy.
+
+**[SoyGema](https://github.com/SoyGema)** (lovell AI) — for [odyssey](https://github.com/lovellai-dev/odyssey). Embodied agents don't improve without an incorruptible scoreboard: a mission, a runner, an honest grade. odyssey brings the discipline of measured missions to robot brains, and its seams are so clean that a toy 2D ward and a REST-based Gemma slotted in without forking a line.
+
+**[Ismael Faro](https://github.com/ismaelfaro)** — for [nanoLoop](https://github.com/ismaelfaro/nanoLoop) and his collaboration on [agentvcs](https://github.com/EvolvingAgentsLabs/agentvcs). Physical-world agents need a reversible identity — a history that can reconcile, roll back, and explain itself — and nanoLoop is the minimal agent loop that acts as the live reconciliation brain behind agentvcs's multidimensional merge. Proof that agency doesn't need weight.
+
+**Google DeepMind** — for [Gemma 4](https://deepmind.google/models/gemma/), and for the decision to release it openly. One commodity model — no GPU, no local weights, a free REST API — plans the round, pilots every motor primitive through native function-calling, and rewrites the robot's own skills. Open-sourcing a model this capable is what puts embodied, self-improving agents within reach of anyone with a laptop.
+
+What strikes me most is that none of these projects was built for this demo — and yet each one lands, with uncanny precision, on a different hard problem of AI agents in the physical world: knowing your capabilities, measuring your outcomes, keeping your history reversible, and thinking cheaply at the edge. They compose because they're each honest about the problem they solve. Thank you.
+
+*If you're building agents that need to change themselves, start with the guardrails, not the loop.*
