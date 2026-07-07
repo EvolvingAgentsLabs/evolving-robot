@@ -47,7 +47,7 @@ flowchart LR
     F -- "regressed" --> H["rollback(reason)"]
 ```
 
-📖 Full story in the blog post: [**My robot missed a fallen patient. Then it rewrote its own protocol.**](./docs/blog-post.md) Build log and architecture in [`PLAN.md`](./PLAN.md).
+📖 Full story in the blog post: [**My robot missed a fallen patient. Then it rewrote its own protocol.**](https://evolvingagentslabs.github.io/evolving-robot/) — published version with the [interactive odyssey pipeline](https://odyssey.dev/evolving-robot) embedded live ([markdown source](./docs/blog-post.md)). Build log and architecture in [`PLAN.md`](./PLAN.md).
 
 ## The toolbox
 

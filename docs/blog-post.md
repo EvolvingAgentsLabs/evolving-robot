@@ -24,7 +24,11 @@ Break the problem statement apart and each piece already has an owner:
 
 **"From its own failures" needs failures to be *measured*, not felt.** [odyssey](https://github.com/lovellai-dev/odyssey) (by [@SoyGema](https://github.com/SoyGema)) runs every round as a mission and returns an honest scoreboard — `success_rate`, `performance_score`, a letter grade. An agent can only improve if something incorruptible tells it how it actually did. Medicine calls this the outcome audit; odyssey is that, as a framework.
 
-[![odyssey — open-source framework for defining, running, and benchmarking robot training missions](img/odyssey.png)](https://odyssey.dev/)
+How a round actually flows through odyssey — mission spec → engine → runner → the pilot/specialist runtime → the honest score → run + trace — is easier to *see* than to explain. odyssey.dev published an interactive walkthrough of this exact mission:
+
+[![Interactive: how the night round flows through odyssey's pipeline — click through each stage at odyssey.dev/evolving-robot](img/evolving-robot.gif)](https://odyssey.dev/evolving-robot)
+
+<p align="center">▶ <a href="https://odyssey.dev/evolving-robot"><b>Explore it live at odyssey.dev/evolving-robot</b></a> — or embedded in the <a href="https://evolvingagentslabs.github.io/evolving-robot/">published version of this post</a>.</p>
 
 **"A broken edit can never land" needs a gate.** [skill-map](https://github.com/crystian/skill-map) (by [@crystian](https://github.com/crystian)) reads every skill file, builds the graph of how they reference each other, and turns broken references, name collisions, and schema violations into hard errors. Every self-edit must pass it. A rejected edit goes back to the model with the exact error as feedback; a persistent failure is reverted. The protocol book can never contradict itself.
 

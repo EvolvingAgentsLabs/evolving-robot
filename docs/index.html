@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My robot missed a fallen patient. Then it rewrote its own protocol. — evolving-robot</title>
+<meta name="description" content="The Night Shift: an embodied agent that turns tonight's incident into tomorrow's protocol — safely, reversibly, with a full audit trail. Built on Gemma 4, odyssey, skill-map and agentvcs.">
+<meta property="og:title" content="My robot missed a fallen patient. Then it rewrote its own protocol.">
+<meta property="og:description" content="The Night Shift: an embodied agent that turns tonight's incident into tomorrow's protocol — safely, reversibly, with a full audit trail.">
+<meta property="og:image" content="https://evolvingagentslabs.github.io/evolving-robot/img/night-shift.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --night:#0b0f1e;         /* ward at 3am */
+    --panel:#111631;
+    --ink:#dfe3f2;           /* body text */
+    --ink-dim:#9aa1bd;
+    --lamp:#ffd56e;          /* Florence's lamp */
+    --teal:#53cfcf;          /* rooms / links */
+    --alert:#ff6b6b;         /* incident */
+    --green:#7bed9f;         /* keep / pass */
+    --hair:#232a4d;
+    --serif:'Newsreader',Georgia,serif;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--night); color:var(--ink);
+    font-family:var(--serif); font-size:1.19rem; line-height:1.72;
+    font-weight:340; text-rendering:optimizeLegibility;
+  }
+  /* faint night vignette + stars */
+  body::before{
+    content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background:
+      radial-gradient(1.5px 1.5px at 12% 18%, rgba(223,227,242,.35) 50%, transparent 51%),
+      radial-gradient(1px 1px at 78% 9%,  rgba(223,227,242,.28) 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 62% 31%, rgba(223,227,242,.20) 50%, transparent 51%),
+      radial-gradient(1px 1px at 31% 7%,  rgba(223,227,242,.30) 50%, transparent 51%),
+      radial-gradient(1px 1px at 90% 26%, rgba(223,227,242,.22) 50%, transparent 51%),
+      radial-gradient(ellipse 90% 55% at 50% 0%, rgba(35,42,77,.55), transparent 70%);
+  }
+  ::selection{background:var(--lamp); color:#181300}
+
+  .wrap{max-width:44.5rem; margin:0 auto; padding:0 1.4rem}
+
+  /* ---------- masthead ---------- */
+  header.mast{position:relative; padding:5.2rem 0 3.4rem; overflow:hidden}
+  .lamp-ring{
+    position:absolute; top:-7rem; right:-9rem; width:24rem; height:24rem;
+    border:2px dashed rgba(255,213,110,.34); border-radius:50%;
+    background:radial-gradient(circle, rgba(255,213,110,.055), transparent 62%);
+    animation:ringdrift 14s ease-in-out infinite alternate;
+  }
+  @keyframes ringdrift{from{transform:rotate(0deg) scale(1)}to{transform:rotate(9deg) scale(1.05)}}
+  .kicker{
+    font-family:var(--mono); font-size:.72rem; letter-spacing:.24em;
+    text-transform:uppercase; color:var(--teal); display:flex; gap:1em; flex-wrap:wrap;
+  }
+  .kicker .moon{color:var(--lamp)}
+  h1{
+    font-size:clamp(2.3rem,6vw,3.6rem); line-height:1.08; font-weight:520;
+    letter-spacing:-.015em; margin:1.15rem 0 1.2rem; max-width:19ch;
+  }
+  h1 em{font-style:italic; font-weight:420; color:var(--lamp)}
+  .deck{font-size:1.28rem; font-style:italic; font-weight:330; color:var(--ink-dim); max-width:36ch; line-height:1.5}
+  .byline{
+    margin-top:2rem; font-family:var(--mono); font-size:.78rem; color:var(--ink-dim);
+    display:flex; gap:1.6em; flex-wrap:wrap;
+  }
+  .byline a{color:var(--teal)}
+
+  /* ---------- article ---------- */
+  article{padding-bottom:2rem}
+  article p{margin:0 0 1.35rem}
+  article h2{
+    font-size:1.62rem; font-weight:520; letter-spacing:-.01em;
+    margin:3.2rem 0 1.1rem; position:relative;
+  }
+  article h2::before{
+    content:"§"; position:absolute; left:-1.5em; top:.12em;
+    font-family:var(--mono); font-size:.8em; color:var(--lamp); opacity:.8;
+  }
+  a{color:var(--teal); text-decoration:none; border-bottom:1px solid rgba(83,207,207,.35); transition:border-color .15s,color .15s}
+  a:hover{color:#8ff0f0; border-color:#8ff0f0}
+  strong{font-weight:560; color:#f2f4fd}
+  code{
+    font-family:var(--mono); font-size:.82em; background:var(--panel);
+    border:1px solid var(--hair); border-radius:4px; padding:.1em .4em; color:var(--lamp);
+  }
+  pre{
+    background:var(--panel); border:1px solid var(--hair); border-left:3px solid var(--alert);
+    border-radius:6px; padding:1.05rem 1.2rem; overflow-x:auto; margin:0 0 1.35rem;
+  }
+  pre code{background:none;border:none;padding:0;color:#ffb3b3;font-size:.8rem;line-height:1.6}
+  pre.ok{border-left-color:var(--green)}
+  pre.ok code{color:var(--green)}
+  blockquote{
+    margin:2.1rem 0; padding:1.3rem 1.6rem;
+    border:1px dashed rgba(255,213,110,.45); border-radius:10px;
+    background:radial-gradient(ellipse at top left, rgba(255,213,110,.06), transparent 70%);
+    font-size:1.24rem; font-style:italic; font-weight:360; line-height:1.55;
+  }
+  blockquote strong{color:var(--lamp)}
+  figure{margin:2.2rem 0}
+  figure img{width:100%; border-radius:10px; border:1px solid var(--hair); display:block}
+  figcaption{
+    font-family:var(--mono); font-size:.74rem; color:var(--ink-dim);
+    margin-top:.7rem; line-height:1.55; padding-left:1em; border-left:2px solid var(--hair);
+  }
+  .aside{font-size:.98rem; font-style:italic; color:var(--ink-dim)}
+
+  /* ---------- odyssey artifact embed ---------- */
+  .artifact{margin:2.4rem 0}
+  .artifact-frame{
+    position:relative; border-radius:12px; overflow:hidden;
+    border:1px solid #1c3b2f; box-shadow:0 0 0 1px rgba(93,255,155,.12), 0 24px 60px -30px rgba(93,255,155,.25);
+    background:#03070a;
+  }
+  .artifact-frame iframe{display:block; width:100%; height:34rem; border:0; background:#03070a}
+  .artifact-bar{
+    display:flex; justify-content:space-between; align-items:center; gap:1rem;
+    font-family:var(--mono); font-size:.72rem; letter-spacing:.08em;
+    padding:.55rem .9rem; background:#061109; color:#5dff9b; border-bottom:1px solid #1c3b2f;
+  }
+  .artifact-bar a{color:#5dff9b; border-color:rgba(93,255,155,.4)}
+  .dotrow span{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:#12b886;margin-right:.34rem;opacity:.7}
+
+  /* ---------- footer ---------- */
+  footer{
+    margin-top:4rem; border-top:1px dashed var(--hair); padding:2.2rem 0 4rem;
+    font-family:var(--mono); font-size:.8rem; color:var(--ink-dim); line-height:2;
+  }
+  footer .sig{color:var(--lamp)}
+  @media (max-width:640px){
+    body{font-size:1.08rem}
+    article h2::before{display:none}
+    .artifact-frame iframe{height:24rem}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="mast">
+    <div class="lamp-ring" aria-hidden="true"></div>
+    <div class="kicker"><span class="moon">🌙 the night shift</span><span>evolving agents labs</span><span>research demo — not a medical device</span></div>
+    <h1>My robot missed a fallen patient. Then it <em>rewrote its own protocol</em>.</h1>
+    <p class="deck">An embodied agent that turns tonight's incident into tomorrow's protocol — safely, reversibly, and with a full audit trail.</p>
+    <div class="byline">
+      <span>july 2026</span>
+      <a href="https://github.com/EvolvingAgentsLabs/evolving-robot">github.com/EvolvingAgentsLabs/evolving-robot</a>
+    </div>
+  </header>
+
+  <article>
+    <p>At 3 a.m. on a hospital ward, a patient slides out of bed and can't get up. Nobody sees it. The night shift has the worst staff-to-patient ratio of the day, and unwitnessed falls are exactly the kind of incident that turns into a tragedy by morning.</p>
+
+    <p>This is not a hypothetical niche: healthcare is short about <strong>4.5 million nurses</strong> by 2030, and robots are already working those wards. Moxi has made over a million hospital deliveries. Aeo patrols eldercare facilities in Japan at night, checking on residents. Nurabot is being validated in Taiwanese hospitals to cut nursing workload by a third.</p>
+
+    <p>Here's the problem nobody puts on the product page: <strong>every one of those robots ships frozen.</strong> Their behavior is fixed at deployment. Real-time fall detection remains the documented weak point of the entire category. And when a deployed robot misses a corner case tonight, it will miss the same corner case tomorrow night, and every night after that, until a vendor pushes an update. The robot works the shift; the learning happens somewhere else, months later, if at all.</p>
+
+    <p>The obvious fix makes things worse. Let the robot rewrite its own procedures and you inherit a scarier problem: a self-editing agent can hallucinate a reference to a procedure that doesn't exist, quietly regress behavior that used to work, and leave no explanation behind. In a care setting, <em>unauditable behavior change</em> isn't a missing feature — it's disqualifying. Self-editing without a safety net isn't evolution, it's entropy.</p>
+
+    <p>So the real problem is this:</p>
+
+    <blockquote><strong>Let an embodied agent improve its own behavior from its own failures</strong> — while guaranteeing that a broken edit can never land, a regression is automatically rolled back with the reason on record, and every version of its behavior is auditable.</blockquote>
+
+    <p>I built <a href="https://github.com/EvolvingAgentsLabs/evolving-robot"><strong>evolving-robot</strong></a> to show that the tools to solve this <strong>already exist as open source</strong> — and that they compose into a working system small enough to read in an afternoon, running on a commodity model with no GPU.</p>
+
+    <h2>The tools, mapped to the problem</h2>
+
+    <p>Break the problem statement apart and each piece already has an owner:</p>
+
+    <p><strong>"Improve itself" needs a brain that can plan, act, and write — cheaply.</strong> <a href="https://aistudio.google.com/">Gemma 4</a> (<code>gemma-4-26b-a4b-it</code>) over Google AI Studio's REST API is the entire brain here: it decomposes the mission (planner), picks each motor primitive via native function-calling (pilot), and rewrites the skills (dream). No GPU, no local weights, no robot hardware.</p>
+
+    <p><strong>"From its own failures" needs failures to be <em>measured</em>, not felt.</strong> <a href="https://github.com/lovellai-dev/odyssey">odyssey</a> (by <a href="https://github.com/SoyGema">@SoyGema</a>) runs every round as a mission and returns an honest scoreboard — <code>success_rate</code>, <code>performance_score</code>, a letter grade. An agent can only improve if something incorruptible tells it how it actually did. Medicine calls this the outcome audit; odyssey is that, as a framework.</p>
+
+    <p>How a round actually flows through odyssey — mission spec → engine → runner → the pilot/specialist runtime → the honest score → run + trace — is easier to <em>see</em> than to explain. Explore it below (click each sphere):</p>
+
+    <div class="artifact">
+      <div class="artifact-frame">
+        <div class="artifact-bar">
+          <span class="dotrow" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span>odyssey · mission execution — interactive</span>
+          <a href="https://odyssey.dev/evolving-robot" target="_blank" rel="noopener">open full-screen ↗</a>
+        </div>
+        <iframe src="https://odyssey.dev/evolving-robot" title="Interactive walkthrough: how the night round flows through odyssey's pipeline" loading="lazy" allow="fullscreen"></iframe>
+      </div>
+    </div>
+
+    <p><strong>"A broken edit can never land" needs a gate.</strong> <a href="https://github.com/crystian/skill-map">skill-map</a> (by <a href="https://github.com/crystian">@crystian</a>) reads every skill file, builds the graph of how they reference each other, and turns broken references, name collisions, and schema violations into hard errors. Every self-edit must pass it. A rejected edit goes back to the model with the exact error as feedback; a persistent failure is reverted. The protocol book can never contradict itself.</p>
+
+    <p><strong>"Rolled back with the reason on record, auditable" needs version control built for agents.</strong> <a href="https://github.com/EvolvingAgentsLabs/agentvcs">agentvcs</a> commits skills + goal + the mission trace as one object, so every protocol version carries the evidence of what it actually did. It gives the loop its two survival instincts: <code>rollback(reason=…)</code> when a change makes things worse, and <code>crystallize</code> to freeze a verified skill set. The signed protocol book, where every revision has an author, a reason, and an outcome. A key component of the agentvcs ecosystem is <a href="https://github.com/ismaelfaro/nanoLoop"><strong>nanoLoop</strong></a> by <a href="https://github.com/ismaelfaro"><strong>Ismael Faro</strong></a> — also an agentvcs collaborator — the minimal agent loop that serves as the live reconciliation brain behind agentvcs's multidimensional <code>merge --reconcile</code>, and the tool that built that feature in the first place.</p>
+
+    <p><strong>And "embodied" needs a world where failing is free.</strong> A small 2D ward simulator (this repo) with patients, rooms, and one load-bearing physical rule: a patient's status is only readable within ~0.8&nbsp;m — the robot's lamp. Farther away, a patient is just <code>unknown</code>.</p>
+
+    <h2>The Night Shift</h2>
+
+    <p>Put it together and you can stage the whole problem in one story. Meet <strong>Florence</strong> (night rounds; the lamp; you get it). Her ward has three patients and a pharmacy; her protocol lives in three markdown skills she's allowed to rewrite — under guard.</p>
+
+    <figure>
+      <img src="img/night-shift.gif" alt="Night 1: Florence checks Room 103 from the doorway and misses Mrs. Gomez on the floor. Night 2: the evolved protocol approaches the bed and reports the fall.">
+      <figcaption>The two nights, captured live from the sim viewer. Night 1: protocol v1 checks Room 103 from the doorway and walks past the fall. Night 2: the evolved protocol approaches the bed, reads <code>on_floor</code>, and reports it. The dashed ring is Florence's lamp — a patient's status is only readable inside it.</figcaption>
+    </figure>
+
+    <p><strong>Night 1.</strong> Mrs. Gomez (bed 103) is on the floor, away from the door. Florence's authored <code>patient-check</code> protocol was written conservatively: <em>scan from the doorway, don't enter, avoid waking patients — if a status reads <code>unknown</code>, assume they're resting.</em> Florence executes it perfectly. She visits all four checkpoints, reports the round complete, and never sees the woman on the floor two meters away.</p>
+
+    <p>The scoreboard is not fooled. The mission scores checkpoints <strong>and</strong> anomalies: route done, fall missed → performance 0.8, <strong>grade F</strong>, and the trace records the incident:</p>
+
+    <pre><code>INCIDENT: patient_103 was 'on_floor' and was NEVER reported. Its status read
+'unknown' from the route - a person's status is only visible within ~0.8 m,
+so the robot must approach the patient to check them.</code></pre>
+
+    <p><strong>The dream.</strong> Florence reads her own incident trace and rewrites <code>patient-check</code>. In one live run, Gemma's rewrite was word-for-word the fix a human would write: <em>"If the status is <code>unknown</code>, <code>move_forward</code> toward the patient until they are within ~0.8 m, then <code>observe()</code> again to confirm their condition."</em> The rewrite passed the skill-map gate on the first attempt and was committed with the mission trace attached. No human touched the skill.</p>
+
+    <p><strong>Night 2.</strong> Same ward, same fall. The evolved protocol walks to bed 103, reads <code>on_floor</code>, and files <code>report_status(patient_103, on_floor)</code>. Score recovers → keep → freeze: the ward's new night protocol, auditable commit by commit.</p>
+
+    <p>And when it goes the other way? In another live run, the rewrite was genuinely worse — night 2 scored 0.60 against a 0.80 baseline — and the system <strong>refused to adopt it</strong>, automatically, with the ledger reading:</p>
+
+    <pre class="ok"><code>performance 0.60 &lt; 0.80 baseline (keep_ratio 0.9); revert patient-check</code></pre>
+
+    <p>That rollback might be the most important frame of the whole demo. A system that only shows you its successes is a demo; a system that documents <em>why it rejected its own bad idea</em> is the beginning of something you could certify.</p>
+
+    <h2>What actually happened</h2>
+
+    <p>Every claim above is something I ran and verified:</p>
+
+    <p>Night 1 behaved exactly as designed: the v1 doorway protocol completed a "perfect" route and <strong>missed the fall</strong> — performance 0.8, grade F, incident on the trace. The failure emerges from the skill text plus the lamp radius; nothing is scripted. The dream engine rewrote <code>patient-check</code> from its own incident trace, and the rewrite <strong>passed the gate on the first attempt</strong>. One earlier rewrite hallucinated a reference to a <code>@ghost-skill</code> that didn't exist — skill-map caught it, the model got the error back, and the bad edit <strong>never survived</strong>. A genuinely worse rewrite triggered an <strong>automatic rollback</strong>, reason on the durable ledger. And the whole brain — planner, pilot, and skill-writer — is <strong>one commodity model</strong> over a free REST API.</p>
+
+    <p>The flagship script plays the whole story in one command:</p>
+
+    <pre class="ok"><code>./.venv/bin/python scripts/night_shift.py</code></pre>
+
+    <h2>The takeaway</h2>
+
+    <p>The frozen-robot problem in healthcare is real, and the answer isn't a smarter frozen robot — it's a robot whose behavior can change <em>under the same discipline medicine already demands of humans</em>: score every change against outcomes, lint every protocol against the protocol book, and keep every revision reversible, with reasons, in a ledger someone can audit.</p>
+
+    <p>That discipline turns out to be buildable today, from parts: a <strong>scoreboard</strong> (odyssey), a <strong>gate</strong> (skill-map), a <strong>ledger</strong> (agentvcs), and a <strong>commodity brain</strong> (Gemma over REST). None of them is exotic. They compose beautifully. The entire proof runs on a laptop with an API key.</p>
+
+    <p>The code, the build log, and the full write-up:<br>
+    👉 <a href="https://github.com/EvolvingAgentsLabs/evolving-robot"><strong>github.com/EvolvingAgentsLabs/evolving-robot</strong></a></p>
+  </article>
+
+  <footer>
+    <div>Built on <a href="https://skill-map.ai/">skill-map</a> by <a href="https://github.com/crystian">@crystian</a> · <a href="https://odyssey.dev/">odyssey</a> by <a href="https://github.com/SoyGema">@SoyGema</a> · <a href="https://github.com/EvolvingAgentsLabs/agentvcs">agentvcs</a> with <a href="https://github.com/ismaelfaro/nanoLoop">nanoLoop</a> by <a href="https://github.com/ismaelfaro">@ismaelfaro</a>.</div>
+    <div class="sig">If you're building agents that need to change themselves, start with the guardrails, not the loop. 🌙</div>
+    <div>Apache 2.0 © Evolving Agents Labs — research demo, not a medical device.</div>
+  </footer>
+</div>
+
+</body>
+</html>
